@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Material 3 color tokens as CSS variables (R G B triplets, used with
+ * Tailwind's `rgb(var(--x) / <alpha-value>)` pattern) so the whole app
+ * re-skins just by toggling the `dark` class on the root — no per-screen
+ * `dark:` variants needed. Generated from the app's actual brand seed
+ * colors via @material/material-color-utilities (SchemeContent, 2021 spec)
+ * so light/dark stay hue-consistent per channel (primary/secondary/tertiary).
+ */
+:root {
+    --color-background: 248 249 250;
+    --color-error: 186 26 26;
+    --color-error-container: 255 218 214;
+    --color-inverse-on-surface: 240 241 242;
+    --color-inverse-primary: 149 212 179;
+    --color-inverse-surface: 46 49 50;
+    --color-on-background: 25 28 29;
+    --color-on-error: 255 255 255;
+    --color-on-error-container: 147 0 10;
+    --color-on-primary: 255 255 255;
+    --color-on-primary-container: 168 231 197;
+    --color-on-primary-fixed: 0 33 20;
+    --color-on-primary-fixed-variant: 14 81 56;
+    --color-on-secondary: 255 255 255;
+    --color-on-secondary-container: 80 104 86;
+    --color-on-secondary-fixed: 9 32 18;
+    --color-on-secondary-fixed-variant: 53 76 59;
+    --color-on-surface: 25 28 29;
+    --color-on-surface-variant: 64 73 67;
+    --color-on-tertiary: 255 255 255;
+    --color-on-tertiary-container: 152 235 192;
+    --color-on-tertiary-fixed: 0 33 19;
+    --color-on-tertiary-fixed-variant: 0 82 54;
+    --color-outline: 112 121 115;
+    --color-outline-variant: 191 201 193;
+    --color-primary: 15 82 56;
+    --color-primary-container: 45 106 79;
+    --color-primary-fixed: 177 240 206;
+    --color-primary-fixed-dim: 149 212 179;
+    --color-secondary: 76 100 82;
+    --color-secondary-container: 204 230 208;
+    --color-secondary-fixed: 206 233 211;
+    --color-secondary-fixed-dim: 179 205 183;
+    --color-surface: 248 249 250;
+    --color-surface-bright: 248 249 250;
+    --color-surface-container: 237 238 239;
+    --color-surface-container-high: 231 232 233;
+    --color-surface-container-highest: 225 227 228;
+    --color-surface-container-low: 243 244 245;
+    --color-surface-container-lowest: 255 255 255;
+    --color-surface-dim: 217 218 219;
+    --color-surface-tint: 44 105 78;
+    --color-surface-variant: 225 227 228;
+    --color-tertiary: 0 83 55;
+    --color-tertiary-container: 16 109 75;
+    --color-tertiary-fixed: 160 244 200;
+    --color-tertiary-fixed-dim: 133 215 173;
+}
+
+.dark:root {
+    --color-background: 17 20 18;
+    --color-error: 255 180 171;
+    --color-error-container: 147 0 10;
+    --color-inverse-on-surface: 46 49 47;
+    --color-inverse-primary: 44 105 78;
+    --color-inverse-surface: 225 227 223;
+    --color-on-background: 225 227 223;
+    --color-on-error: 105 0 5;
+    --color-on-error-container: 255 218 214;
+    --color-on-primary: 0 56 36;
+    --color-on-primary-container: 133 196 162;
+    --color-on-primary-fixed: 0 33 19;
+    --color-on-primary-fixed-variant: 13 81 55;
+    --color-on-secondary: 31 53 38;
+    --color-on-secondary-container: 196 223 201;
+    --color-on-secondary-fixed: 9 32 18;
+    --color-on-secondary-fixed-variant: 53 76 59;
+    --color-on-surface: 225 227 223;
+    --color-on-surface-variant: 191 201 193;
+    --color-on-tertiary: 0 56 36;
+    --color-on-tertiary-container: 128 197 161;
+    --color-on-tertiary-fixed: 0 33 19;
+    --color-on-tertiary-fixed-variant: 0 82 54;
+    --color-outline: 138 147 140;
+    --color-outline-variant: 64 73 67;
+    --color-primary: 149 212 178;
+    --color-primary-container: 15 82 56;
+    --color-primary-fixed: 176 241 205;
+    --color-primary-fixed-dim: 149 212 178;
+    --color-secondary: 179 205 183;
+    --color-secondary-container: 76 100 82;
+    --color-secondary-fixed: 206 233 210;
+    --color-secondary-fixed-dim: 179 205 183;
+    --color-surface: 17 20 18;
+    --color-surface-bright: 55 58 55;
+    --color-surface-container: 29 32 30;
+    --color-surface-container-high: 39 43 40;
+    --color-surface-container-highest: 50 54 51;
+    --color-surface-container-low: 25 28 26;
+    --color-surface-container-lowest: 12 15 13;
+    --color-surface-dim: 17 20 18;
+    --color-surface-tint: 149 212 178;
+    --color-surface-variant: 64 73 67;
+    --color-tertiary: 143 213 176;
+    --color-tertiary-container: 0 83 55;
+    --color-tertiary-fixed: 171 242 203;
+    --color-tertiary-fixed-dim: 143 213 176;
+}

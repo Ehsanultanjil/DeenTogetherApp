@@ -1,0 +1,43 @@
+// Subset of Material Symbols Outlined codepoints used by DeenTogether.
+// Source: google/material-design-icons variablefont codepoints file.
+// Render via String.fromCodePoint(parseInt(hex, 16)) against the bundled
+// static instances (assets/fonts/MaterialSymbolsOutlined-{Regular,Filled}.ttf).
+export const MATERIAL_SYMBOLS = {
+  add: 'e145',
+  analytics: 'ef3e',
+  arrow_back: 'e5c4',
+  bedtime: 'f159',
+  brightness_3: 'e3a8',
+  calendar_month: 'ebcc',
+  calendar_today: 'e935',
+  check_circle: 'f0be',
+  check: 'e668',
+  chevron_left: 'e5cb',
+  chevron_right: 'e5cc',
+  dark_mode: 'e51c',
+  event_note: 'e616',
+  expand_more: 'e5cf',
+  groups: 'f233',
+  home: 'e9b2',
+  info: 'e88e',
+  language: 'ea07',
+  light_mode: 'e518',
+  local_fire_department: 'ef55',
+  location_on: 'f1db',
+  menu: 'e5d2',
+  mosque: 'eab2',
+  my_location: 'e55c',
+  notifications: 'e7f5',
+  person: 'f0d3',
+  radio_button_unchecked: 'e836',
+  settings: 'e8b8',
+  share: 'e80d',
+  shield_with_heart: 'e78f',
+  sunny: 'e81a',
+  visibility: 'e8f4',
+  volunteer_activism: 'ea70',
+  wb_sunny: 'e430',
+  wb_twilight: 'e1c6',
+} as const;
+
+export type MaterialSymbolName = keyof typeof MATERIAL_SYMBOLS;

@@ -1,15 +1,21 @@
 {
   "expo": {
-    "name": "deen-together",
+    "name": "DeenTogether",
     "slug": "deen-together",
     "version": "1.0.0",
+    "scheme": "deentogether",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
+    "experiments": {
+      "typedRoutes": true
+    },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.deentogether.app"
     },
     "android": {
+      "package": "com.deentogether.app",
       "adaptiveIcon": {
         "backgroundColor": "#E6F4FE",
         "foregroundImage": "./assets/android-icon-foreground.png",
@@ -19,7 +25,22 @@
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
-    }
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-splash-screen",
+      "expo-web-browser",
+      "expo-font",
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "DeenTogether uses your location to calculate accurate prayer times for your area.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false
+        }
+      ]
+    ]
   }
 }
