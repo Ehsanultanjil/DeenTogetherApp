@@ -1,7 +1,9 @@
 import '../global.css';
+import '../lib/notifications/backgroundTask';
 
 import { useEffect } from 'react';
 import { Stack } from 'expo-router';
+import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
 import { useFonts } from 'expo-font';
 import {
@@ -50,6 +52,7 @@ export default function RootLayout() {
   const setInitialized = useAuthStore((s) => s.setInitialized);
   const localeHydrated = useLocaleStore((s) => s.hydrated);
   const themeHydrated = useThemeStore((s) => s.hydrated);
+  const themeMode = useThemeStore((s) => s.mode);
   const locationPrefHydrated = useLocationPreferenceStore((s) => s.hydrated);
 
   useEffect(() => {
@@ -83,6 +86,7 @@ export default function RootLayout() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
+          <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
           <Stack screenOptions={{ headerShown: false }} />
         </QueryClientProvider>
       </SafeAreaProvider>

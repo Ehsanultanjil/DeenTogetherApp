@@ -5,7 +5,7 @@ import type { CalcMethodKey, MadhabKey } from '../prayerTimes';
 
 export type PrayerSettings = { calcMethod: CalcMethodKey; madhab: MadhabKey };
 
-const DEFAULT_SETTINGS: PrayerSettings = { calcMethod: 'MuslimWorldLeague', madhab: 'shafii' };
+const DEFAULT_SETTINGS: PrayerSettings = { calcMethod: 'MuslimWorldLeague', madhab: 'hanafi' };
 
 export function usePrayerSettings() {
   const userId = useAuthStore((s) => s.session?.user.id);

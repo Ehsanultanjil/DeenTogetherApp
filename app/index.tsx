@@ -15,7 +15,7 @@ export default function Splash() {
   }
 
   return (
-    <View className="flex-1 bg-surface justify-between" style={{ backgroundColor: '#f8f9fa' }}>
+    <View className="flex-1 bg-surface justify-between">
       <View className="flex-1 items-center justify-center px-gutter">
         <View className="mb-md bg-primary-container p-6 rounded-2xl shadow-lg items-center justify-center">
           <Icon name="mosque" filled size={64} color="#a8e7c5" />

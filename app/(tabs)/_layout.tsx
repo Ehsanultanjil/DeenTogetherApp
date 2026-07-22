@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { Redirect, Tabs } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from '../../components/Icon';
@@ -8,6 +9,7 @@ import { useT } from '../../lib/hooks/useT';
 import { FONT_BY_WEIGHT } from '../../components/fontByWeight';
 import { useCurrentFamilyId } from '../../lib/hooks/useFamily';
 import { useFamilyRealtime } from '../../lib/hooks/useFamilyRealtime';
+import { requestPrayerNotificationPermission } from '../../lib/hooks/usePrayerNotifications';
 
 const TAB_ICON: Record<string, MaterialSymbolName> = {
   index: 'home',
@@ -28,6 +30,10 @@ export default function TabsLayout() {
   const { data: currentFamilyId } = useCurrentFamilyId();
   useFamilyRealtime(currentFamilyId ?? null);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    if (session) requestPrayerNotificationPermission();
+  }, [session]);
 
   if (!session) {
     return <Redirect href="/(auth)/login" />;

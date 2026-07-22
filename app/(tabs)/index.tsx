@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { useRouter } from 'expo-router';
@@ -13,13 +13,21 @@ import { useClockTick } from '../../lib/hooks/useClockTick';
 import { useLocationName } from '../../lib/hooks/useLocationName';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { useTodayPrayerLogs } from '../../lib/hooks/usePrayerLogs';
+import { usePrayerNotifications } from '../../lib/hooks/usePrayerNotifications';
 import { useStreak } from '../../lib/hooks/useStreak';
 import { useCurrentFamilyId, useFamilyTodayStatus } from '../../lib/hooks/useFamily';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationPreferenceStore } from '../../store/useLocationPreferenceStore';
 import { BANGLADESH_DISTRICTS, nearestDistrict } from '../../lib/bangladeshDistricts';
 import { useT } from '../../lib/hooks/useT';
-import { formatCountdown, formatTime, getCurrentWaqt, locationDateString, type WaqtName } from '../../lib/prayerTimes';
+import {
+  computePrayerTimes,
+  formatCountdown,
+  formatTime,
+  getCurrentWaqt,
+  locationDateString,
+  type WaqtName,
+} from '../../lib/prayerTimes';
 import type { MakruhKey } from '../../lib/prayerTimes';
 
 const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
@@ -74,6 +82,21 @@ export default function Home() {
   const { completed } = useTodayPrayerLogs(dateString);
   const streak = useStreak();
 
+  // Tomorrow's Maghrib — only needed once today's Iftar has already
+  // passed, but cheap enough to just always compute alongside today's.
+  const tomorrowTimes = useMemo(() => {
+    if (!coords) return null;
+    return computePrayerTimes({
+      latitude: coords.latitude,
+      longitude: coords.longitude,
+      date: new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      calcMethod: settings.calcMethod,
+      madhab: settings.madhab,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dateString, coords?.latitude, coords?.longitude, settings.calcMethod, settings.madhab]);
+  usePrayerNotifications(times, dateString, completed, locale);
+
   const { data: currentFamilyId } = useCurrentFamilyId();
   const { data: familyStatus } = useFamilyTodayStatus(currentFamilyId ?? null);
   const familyMembersExceptMe = (familyStatus ?? []).filter((m) => m.user_id !== session?.user.id);
@@ -123,11 +146,17 @@ export default function Home() {
   const currentDurationMs = current.end.getTime() - current.start.getTime();
   const currentProgress = currentDurationMs > 0 ? (remainingMs / currentDurationMs) * 100 : 0;
   const tomorrowFajr = times.windows[times.windows.length - 1].end;
-  const nextFajr = now < times.fajr ? times.fajr : tomorrowFajr;
-  const sahriRemainingMs = Math.max(0, nextFajr.getTime() - now.getTime());
   // Islamic midnight (moddhorat) — midpoint of the night from Maghrib to
   // next Fajr, not clock midnight. Isha becomes makruh to delay past this.
   const moddhorat = new Date(times.maghrib.getTime() + (tomorrowFajr.getTime() - times.maghrib.getTime()) / 2);
+
+  const isFastingHours = now >= times.fajr && now < times.maghrib;
+  const sahriIsToday = now < times.fajr;
+  const iftarIsToday = now < times.maghrib;
+  const sahriTime = sahriIsToday ? times.fajr : tomorrowFajr;
+  const iftarTime = iftarIsToday ? times.maghrib : (tomorrowTimes?.maghrib ?? times.maghrib);
+  const countdownTarget = isFastingHours ? times.maghrib : sahriIsToday ? times.fajr : tomorrowFajr;
+  const countdownRemainingMs = Math.max(0, countdownTarget.getTime() - now.getTime());
 
   return (
     <View className="flex-1 bg-surface">
@@ -204,19 +233,25 @@ export default function Home() {
         <View className="flex-row bg-surface-container-lowest rounded-xl border border-surface-container-low mb-4 overflow-hidden">
           <View className="flex-1 items-center py-3 border-r border-surface-container-low">
             <Text className="text-[15px] font-bold text-on-surface">
-              {formatTime(times.fajr, times.timeZone, localeTag)}
+              {formatTime(sahriTime, times.timeZone, localeTag)}
             </Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">{t('nextSahri')}</Text>
+            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
+              {t(sahriIsToday ? 'todaysSahri' : 'nextSahri')}
+            </Text>
           </View>
           <View className="flex-1 items-center py-3 border-r border-surface-container-low">
             <Text className="text-[15px] font-bold text-on-surface">
-              {formatTime(times.maghrib, times.timeZone, localeTag)}
+              {formatTime(iftarTime, times.timeZone, localeTag)}
             </Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">{t('nextIftar')}</Text>
+            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
+              {t(iftarIsToday ? 'todaysIftar' : 'nextIftar')}
+            </Text>
           </View>
           <View className="flex-1 items-center py-3">
-            <Text className="text-[15px] font-bold text-on-surface">{formatCountdown(sahriRemainingMs, n)}</Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">{t('sahriTimeLeft')}</Text>
+            <Text className="text-[15px] font-bold text-on-surface">{formatCountdown(countdownRemainingMs, n)}</Text>
+            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
+              {t(isFastingHours ? 'iftarTimeLeft' : 'sahriTimeLeft')}
+            </Text>
           </View>
         </View>
 

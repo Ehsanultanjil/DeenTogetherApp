@@ -6,7 +6,7 @@
     "scheme": "deentogether",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
-    "userInterfaceStyle": "light",
+    "userInterfaceStyle": "automatic",
     "experiments": {
       "typedRoutes": true
     },
@@ -17,10 +17,8 @@
     "android": {
       "package": "com.deentogether.app",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#31523E",
+        "foregroundImage": "./assets/android-icon-foreground.png"
       },
       "predictiveBackGestureEnabled": false
     },
@@ -30,7 +28,18 @@
     },
     "plugins": [
       "expo-router",
-      "expo-splash-screen",
+      [
+        "expo-splash-screen",
+        {
+          "image": "./assets/splash-icon.png",
+          "imageWidth": 220,
+          "backgroundColor": "#31523E",
+          "dark": {
+            "image": "./assets/splash-icon.png",
+            "backgroundColor": "#31523E"
+          }
+        }
+      ],
       "expo-web-browser",
       "expo-font",
       [
@@ -39,6 +48,12 @@
           "locationWhenInUsePermission": "DeenTogether uses your location to calculate accurate prayer times for your area.",
           "locationAlwaysAndWhenInUsePermission": false,
           "locationAlwaysPermission": false
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#0f5238"
         }
       ]
     ]

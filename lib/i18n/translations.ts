@@ -142,9 +142,12 @@ const en = {
   makruhSunset: 'Sunset',
 
   // Sahri/Iftar strip
+  todaysSahri: "Today's Sahri",
   nextSahri: 'Next Sahri',
+  todaysIftar: "Today's Iftar",
   nextIftar: 'Next Iftar',
   sahriTimeLeft: 'Sahri time left',
+  iftarTimeLeft: 'Iftar time left',
 };
 
 const bn: typeof en = {
@@ -274,9 +277,12 @@ const bn: typeof en = {
   makruhIstiwa: 'মধ্যাহ্ন (ইস্তিওয়া)',
   makruhSunset: 'সূর্যাস্ত',
 
+  todaysSahri: 'আজকের সাহরি',
   nextSahri: 'পরবর্তী সাহরি',
+  todaysIftar: 'আজকের ইফতার',
   nextIftar: 'পরবর্তী ইফতার',
   sahriTimeLeft: 'সাহরির বাকি',
+  iftarTimeLeft: 'ইফতারের বাকি',
 };
 
 export const translations = { en, bn };
