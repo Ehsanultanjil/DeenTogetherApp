@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import { runOrQueue } from '../sync/runOrQueue';
 import type { WaqtName } from '../prayerTimes';
 
 export type CompletionMap = Record<WaqtName, boolean>;
@@ -12,6 +13,24 @@ const EMPTY_COMPLETION: CompletionMap = {
   maghrib: false,
   isha: false,
 };
+
+// Shared by both mutations below AND the offline sync engine (which
+// replays queued actions with no React tree present) — one real
+// implementation of "write a prayer's completion state".
+export async function applyPrayerToggle(payload: {
+  userId: string;
+  prayerDate: string;
+  prayerName: string;
+  completed: boolean;
+}) {
+  const { error } = await supabase
+    .from('prayer_logs')
+    .update({ completed: payload.completed, completed_at: payload.completed ? new Date().toISOString() : null })
+    .eq('user_id', payload.userId)
+    .eq('prayer_date', payload.prayerDate)
+    .eq('prayer_name', payload.prayerName);
+  if (error) throw error;
+}
 
 export function useTodayPrayerLogs(dateString: string | null) {
   const userId = useAuthStore((s) => s.session?.user.id);
@@ -39,13 +58,8 @@ export function useTodayPrayerLogs(dateString: string | null) {
 
   const toggleMutation = useMutation({
     mutationFn: async ({ name, completed }: { name: WaqtName; completed: boolean }) => {
-      const { error } = await supabase
-        .from('prayer_logs')
-        .update({ completed, completed_at: completed ? new Date().toISOString() : null })
-        .eq('user_id', userId!)
-        .eq('prayer_date', dateString!)
-        .eq('prayer_name', name);
-      if (error) throw error;
+      const payload = { userId: userId!, prayerDate: dateString!, prayerName: name, completed };
+      await runOrQueue({ kind: 'prayerToggle', payload, run: () => applyPrayerToggle(payload) });
     },
     onMutate: async ({ name, completed }) => {
       await queryClient.cancelQueries({ queryKey });
@@ -67,5 +81,59 @@ export function useTodayPrayerLogs(dateString: string | null) {
     completed: query.data ?? EMPTY_COMPLETION,
     isLoading: query.isLoading,
     toggle: (name: WaqtName, next: boolean) => toggleMutation.mutate({ name, completed: next }),
+  };
+}
+
+// Handles the one gap case where Isha belongs to a DIFFERENT calendar date
+// than the rest of the day's prayers: between midnight and real Fajr, last
+// night's Isha (still open) must read/write against yesterday's prayer_date,
+// not today's — see usePrayerTimes.ts's `ishaDateString`. No-ops (disabled
+// query) outside that gap, when `ishaDateString` is null.
+export function useIshaCarryover(ishaDateString: string | null) {
+  const userId = useAuthStore((s) => s.session?.user.id);
+  const queryClient = useQueryClient();
+  const queryKey = ['ishaCarryover', userId, ishaDateString];
+
+  const query = useQuery({
+    queryKey,
+    enabled: !!userId && !!ishaDateString,
+    queryFn: async (): Promise<boolean> => {
+      await supabase.rpc('ensure_today_prayer_rows', { p_date: ishaDateString! });
+      const { data, error } = await supabase
+        .from('prayer_logs')
+        .select('completed')
+        .eq('user_id', userId!)
+        .eq('prayer_date', ishaDateString!)
+        .eq('prayer_name', 'isha')
+        .maybeSingle();
+      if (error) throw error;
+      return data?.completed ?? false;
+    },
+  });
+
+  const toggleMutation = useMutation({
+    mutationFn: async (completed: boolean) => {
+      const payload = { userId: userId!, prayerDate: ishaDateString!, prayerName: 'isha', completed };
+      await runOrQueue({ kind: 'prayerToggle', payload, run: () => applyPrayerToggle(payload) });
+    },
+    onMutate: async (completed) => {
+      await queryClient.cancelQueries({ queryKey });
+      const previous = queryClient.getQueryData<boolean>(queryKey);
+      queryClient.setQueryData(queryKey, completed);
+      return { previous };
+    },
+    onError: (_err, _vars, context) => {
+      if (context?.previous !== undefined) queryClient.setQueryData(queryKey, context.previous);
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey });
+      queryClient.invalidateQueries({ queryKey: ['streak', userId] });
+      queryClient.invalidateQueries({ queryKey: ['monthlyStats', userId] });
+    },
+  });
+
+  return {
+    completed: query.data ?? false,
+    toggle: (next: boolean) => toggleMutation.mutate(next),
   };
 }

@@ -14,7 +14,7 @@ type Props = {
   onClose: () => void;
 };
 
-function AvatarGrid({
+export function AvatarGrid({
   ids,
   selectedValue,
   onSelect,

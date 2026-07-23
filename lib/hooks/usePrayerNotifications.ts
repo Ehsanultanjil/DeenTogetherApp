@@ -6,13 +6,14 @@ import {
   MARK_DONE_ACTION_ID,
   PRAYER_CATEGORY_ID,
   PRAYER_CHANNEL_ID,
+  WAQT_ORDER,
   missedLine,
   notificationIdFor,
   startedLine,
 } from '../notifications/config';
 import '../notifications/backgroundTask';
 import type { CompletionMap } from './usePrayerLogs';
-import type { DayPrayerTimes, WaqtName } from '../prayerTimes';
+import { getCurrentWaqt, type DayPrayerTimes, type WaqtName } from '../prayerTimes';
 import type { Locale } from '../../store/useLocaleStore';
 
 let setupDone = false;
@@ -48,16 +49,33 @@ export async function requestPrayerNotificationPermission() {
 // the background on delivery (only on an action press — see
 // backgroundTask.ts), so this is best-effort: it runs whenever the app is
 // foregrounded / this data changes, not continuously.
-async function syncNotifications(times: DayPrayerTimes, dateString: string, completed: CompletionMap, locale: Locale) {
+async function cancelAllWaqtNotifications() {
+  for (const waqt of WAQT_ORDER) {
+    await Notifications.cancelScheduledNotificationAsync(notificationIdFor(waqt)).catch(() => {});
+  }
+  const presented = await Notifications.getPresentedNotificationsAsync();
+  for (const notif of presented) {
+    await Notifications.dismissNotificationAsync(notif.request.identifier).catch(() => {});
+  }
+}
+
+async function syncNotifications(
+  times: DayPrayerTimes,
+  dateString: string,
+  completed: CompletionMap,
+  locale: Locale,
+  enabled: boolean,
+) {
+  if (!enabled) {
+    await cancelAllWaqtNotifications();
+    return;
+  }
+
   const granted = (await Notifications.getPermissionsAsync()).status === 'granted';
   if (!granted) return;
 
   const now = new Date();
-  let currentIdx = 0;
-  for (let i = 0; i < times.windows.length; i++) {
-    if (now >= times.windows[i].start) currentIdx = i;
-  }
-  const currentWaqt = times.windows[currentIdx].name;
+  const currentWaqt = getCurrentWaqt(times.windows, now).current.name;
 
   const presented = await Notifications.getPresentedNotificationsAsync();
   for (const notif of presented) {
@@ -99,6 +117,7 @@ export function usePrayerNotifications(
   dateString: string | null,
   completed: CompletionMap,
   locale: Locale,
+  enabled: boolean,
 ) {
   const lastRun = useRef(0);
   // `times` is a fresh object every ~60s (usePrayerTimes' internal clock
@@ -115,9 +134,9 @@ export function usePrayerNotifications(
 
   useEffect(() => {
     if (!timesRef.current || !dateString) return;
-    syncNotifications(timesRef.current, dateString, completed, locale);
+    syncNotifications(timesRef.current, dateString, completed, locale, enabled);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateString, completed, locale]);
+  }, [dateString, completed, locale, enabled]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -125,8 +144,8 @@ export function usePrayerNotifications(
       const now = Date.now();
       if (now - lastRun.current < 5000) return; // avoid thrashing on rapid fg/bg
       lastRun.current = now;
-      syncNotifications(timesRef.current, dateString, completed, locale);
+      syncNotifications(timesRef.current, dateString, completed, locale, enabled);
     });
     return () => sub.remove();
-  }, [dateString, completed, locale]);
+  }, [dateString, completed, locale, enabled]);
 }

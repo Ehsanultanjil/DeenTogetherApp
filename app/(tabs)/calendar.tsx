@@ -9,6 +9,7 @@ import { useColors } from '../../constants/theme';
 import { useMonthlyStats, useMonthlyDayStatus, type DayStatus } from '../../lib/hooks/useMonthlyStats';
 import { useDayPrayerLogs } from '../../lib/hooks/useDayPrayerLogs';
 import { useT } from '../../lib/hooks/useT';
+import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import type { WaqtName } from '../../lib/prayerTimes';
 
 function daysInMonth(year: number, month: number) {
@@ -28,6 +29,7 @@ const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMag
 export default function CalendarScreen() {
   const { t, n, localeTag } = useT();
   const Colors = useColors();
+  const tabBarHeight = useTabBarHeight();
   const DAY_STATUS_COLOR: Record<DayStatus, string> = {
     all: Colors.primary,
     some: '#facc15',
@@ -96,7 +98,7 @@ export default function CalendarScreen() {
   return (
     <View className="flex-1 bg-surface">
       <TopAppBar title={t('tabCalendar')} showBack />
-      <ScrollView className="flex-1 px-container-margin" contentContainerStyle={{ paddingBottom: 48, paddingTop: 12 }}>
+      <ScrollView className="flex-1 px-container-margin" contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 12 }}>
         <View className="flex-row items-center justify-between mb-4">
           <Pressable onPress={goPrev} hitSlop={8}>
             <Icon name="chevron_left" color={Colors.onSurfaceVariant} />
@@ -127,8 +129,9 @@ export default function CalendarScreen() {
                   day={n(day)}
                   isToday={isCurrentMonth && day === today}
                   isSelected={selectedDay === day}
-                  dotColor={dayStatus?.[day] ? DAY_STATUS_COLOR[dayStatus[day]] : undefined}
-                  dotTextColor={dayStatus?.[day] ? DAY_STATUS_TEXT_COLOR[dayStatus[day]] : undefined}
+                  dotColor={dayStatus?.[day] ? DAY_STATUS_COLOR[dayStatus[day].status] : undefined}
+                  dotTextColor={dayStatus?.[day] ? DAY_STATUS_TEXT_COLOR[dayStatus[day].status] : undefined}
+                  isPremium={dayStatus?.[day]?.status === 'all' && !!dayStatus[day].quranDone}
                   onPress={() => setSelectedDay(day)}
                 />
               </View>
@@ -190,6 +193,9 @@ export default function CalendarScreen() {
           </View>
           <View style={{ width: '48%', marginBottom: 16 }}>
             <StatTile label={t('monthProgress')} value={`${n(stats?.monthProgress ?? 0)}%`} icon="analytics" emphasis />
+          </View>
+          <View style={{ width: '48%', marginBottom: 16 }}>
+            <StatTile label={t('quranDaysStat')} value={n(stats?.quranDays ?? 0)} icon="menu_book" iconColor="#D4AF37" />
           </View>
         </View>
       </ScrollView>

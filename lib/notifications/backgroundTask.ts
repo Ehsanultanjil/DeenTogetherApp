@@ -2,6 +2,7 @@ import * as TaskManager from 'expo-task-manager';
 import * as Notifications from 'expo-notifications';
 import type { NotificationResponse } from 'expo-notifications';
 import { supabase } from '../supabase';
+import { runOrQueue } from '../sync/runOrQueue';
 import {
   BACKGROUND_NOTIFICATION_TASK,
   MARK_DONE_ACTION_ID,
@@ -53,25 +54,41 @@ TaskManager.defineTask(BACKGROUND_NOTIFICATION_TASK, async ({ data, error }) => 
   const content = response.notification.request.content.data as PrayerNotificationData | undefined;
   if (!content?.waqt || !content?.dateString) return;
 
+  // Headless context, no UI to fall back on — never let a hung/slow
+  // AsyncStorage read (e.g. lock contention with the foreground app) block
+  // this task indefinitely.
+  const timeout = new Promise<{ data: { session: null } }>((resolve) =>
+    setTimeout(() => resolve({ data: { session: null } }), 5000),
+  );
   const {
     data: { session },
-  } = await supabase.auth.getSession();
+  } = await Promise.race([supabase.auth.getSession(), timeout]).catch(() => ({ data: { session: null } }));
   const userId = session?.user.id;
   if (!userId) return;
 
+  // No React tree / QueryClient here (headless task) — runOrQueue's
+  // enqueue path is plain AsyncStorage, so it works fine even here; a
+  // queued action just waits for the next foreground resume to flush.
   // Row should already exist (ensure_today_prayer_rows ran whenever the
-  // user last opened the app), but upsert defensively — this runs with no
-  // UI to fall back on if it somehow doesn't.
-  await supabase.from('prayer_logs').upsert(
-    {
-      user_id: userId,
-      prayer_date: content.dateString,
-      prayer_name: content.waqt,
-      completed: true,
-      completed_at: new Date().toISOString(),
+  // user last opened the app), but upsert defensively when actually
+  // online — this runs with no UI to fall back on if it somehow doesn't.
+  await runOrQueue({
+    kind: 'prayerToggle',
+    payload: { userId, prayerDate: content.dateString, prayerName: content.waqt, completed: true },
+    run: async () => {
+      const { error } = await supabase.from('prayer_logs').upsert(
+        {
+          user_id: userId,
+          prayer_date: content.dateString,
+          prayer_name: content.waqt,
+          completed: true,
+          completed_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,prayer_date,prayer_name' },
+      );
+      if (error) throw error;
     },
-    { onConflict: 'user_id,prayer_date,prayer_name' },
-  );
+  });
 
   await clearMissedMarkOnNext(content).catch(() => {});
 

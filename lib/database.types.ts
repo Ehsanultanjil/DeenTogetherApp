@@ -39,6 +39,44 @@ export type Database = {
   }
   public: {
     Tables: {
+      daily_deeds: {
+        Row: {
+          completed: boolean
+          completed_at: string | null
+          deed_date: string
+          deed_type: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          completed?: boolean
+          completed_at?: string | null
+          deed_date: string
+          deed_type: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          completed?: boolean
+          completed_at?: string | null
+          deed_date?: string
+          deed_type?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_deeds_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       families: {
         Row: {
           created_at: string
@@ -148,6 +186,48 @@ export type Database = {
           },
         ]
       }
+      prayer_reminders: {
+        Row: {
+          created_at: string
+          id: string
+          prayer_date: string
+          prayer_name: string
+          recipient_id: string
+          sender_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          prayer_date: string
+          prayer_name: string
+          recipient_id: string
+          sender_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          prayer_date?: string
+          prayer_name?: string
+          recipient_id?: string
+          sender_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "prayer_reminders_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "prayer_reminders_sender_id_fkey"
+            columns: ["sender_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           avatar_url: string | null
@@ -159,6 +239,9 @@ export type Database = {
           last_latitude: number | null
           last_longitude: number | null
           madhab: string | null
+          notifications_enabled: boolean
+          onboarding_completed: boolean
+          safety_margin_minutes: number
         }
         Insert: {
           avatar_url?: string | null
@@ -170,6 +253,9 @@ export type Database = {
           last_latitude?: number | null
           last_longitude?: number | null
           madhab?: string | null
+          notifications_enabled?: boolean
+          onboarding_completed?: boolean
+          safety_margin_minutes?: number
         }
         Update: {
           avatar_url?: string | null
@@ -181,6 +267,9 @@ export type Database = {
           last_latitude?: number | null
           last_longitude?: number | null
           madhab?: string | null
+          notifications_enabled?: boolean
+          onboarding_completed?: boolean
+          safety_margin_minutes?: number
         }
         Relationships: [
           {
@@ -188,6 +277,38 @@ export type Database = {
             columns: ["current_family_id"]
             isOneToOne: false
             referencedRelation: "families"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      push_tokens: {
+        Row: {
+          created_at: string
+          expo_push_token: string
+          id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expo_push_token: string
+          id?: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expo_push_token?: string
+          id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "push_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
             referencedColumns: ["id"]
           },
         ]
@@ -219,15 +340,28 @@ export type Database = {
       }
       get_current_streak: { Args: { p_user_id?: string }; Returns: number }
       get_family_today_status: {
-        Args: { p_family_id: string }
+        Args: { p_family_id: string; p_current_prayer?: string }
         Returns: {
           avatar_url: string
           completed_count: number
+          current_prayer_completed: boolean
           full_name: string
+          last_reminded_at: string | null
           percent: number
           role: string
           user_id: string
         }[]
+      }
+      send_prayer_reminder: {
+        Args: { p_recipient_id: string; p_prayer_name: string; p_prayer_date: string }
+        Returns: {
+          created_at: string
+          id: string
+          prayer_date: string
+          prayer_name: string
+          recipient_id: string
+          sender_id: string
+        }
       }
       get_monthly_stats: {
         Args: { p_month?: number; p_user_id?: string; p_year?: number }
@@ -236,6 +370,7 @@ export type Database = {
           days_tracked: number
           month_progress: number
           prayers_done: number
+          quran_days: number
         }[]
       }
       is_family_member: {
@@ -259,6 +394,8 @@ export type Database = {
         }
       }
       leave_family: { Args: { p_family_id: string }; Returns: undefined }
+      promote_member: { Args: { p_family_id: string; p_new_admin_id: string }; Returns: undefined }
+      delete_family: { Args: { p_family_id: string }; Returns: undefined }
       shares_family_with: {
         Args: { p_other_user_id: string }
         Returns: boolean

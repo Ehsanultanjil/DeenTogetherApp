@@ -2,15 +2,17 @@ import { ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { TopAppBar } from '../../components/TopAppBar';
 import { useT } from '../../lib/hooks/useT';
+import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import { DUAS } from '../../lib/duas';
 
 export default function DuaScreen() {
   const { t, locale } = useT();
+  const tabBarHeight = useTabBarHeight();
 
   return (
     <View className="flex-1 bg-surface">
       <TopAppBar title={t('duaTitle')} />
-      <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: 48, paddingTop: 16 }}>
+      <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 16 }}>
         <View className="gap-4">
           {DUAS.map((dua) => (
             <View

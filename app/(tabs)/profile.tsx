@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { Image, Pressable, ScrollView, Switch, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Text } from '../../components/Text';
+import { TextInput } from '../../components/TextInput';
 import { TopAppBar } from '../../components/TopAppBar';
 import { Icon } from '../../components/Icon';
 import { OptionPickerModal } from '../../components/OptionPickerModal';
@@ -12,22 +14,50 @@ import { useAuthStore } from '../../store/useAuthStore';
 import { useThemeStore } from '../../store/useThemeStore';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { useAvatar } from '../../lib/hooks/useAvatar';
+import { useFullName } from '../../lib/hooks/useFullName';
+import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import { useT } from '../../lib/hooks/useT';
 import type { Locale } from '../../store/useLocaleStore';
-import { CALC_METHOD_LABELS, MADHAB_LABELS, type CalcMethodKey, type MadhabKey } from '../../lib/prayerTimes';
+import {
+  CALC_METHOD_LABELS,
+  MADHAB_LABELS,
+  SAFETY_MARGIN_OPTIONS,
+  type CalcMethodKey,
+  type MadhabKey,
+  type SafetyMarginMinutes,
+} from '../../lib/prayerTimes';
 
 const CALC_METHOD_OPTIONS = Object.entries(CALC_METHOD_LABELS).map(([key, label]) => ({ key, label }));
 const MADHAB_OPTIONS = Object.entries(MADHAB_LABELS).map(([key, label]) => ({ key, label }));
 
+const SAFETY_MARGIN_KEY: Record<
+  SafetyMarginMinutes,
+  'safetyMargin0' | 'safetyMargin1' | 'safetyMargin2' | 'safetyMargin3' | 'safetyMargin4' | 'safetyMargin5'
+> = {
+  0: 'safetyMargin0',
+  1: 'safetyMargin1',
+  2: 'safetyMargin2',
+  3: 'safetyMargin3',
+  4: 'safetyMargin4',
+  5: 'safetyMargin5',
+};
+
 export default function ProfileScreen() {
+  const router = useRouter();
   const session = useAuthStore((s) => s.session);
   const { settings, updateSettings } = usePrayerSettings();
   const { avatarUrl, setAvatar } = useAvatar();
+  const { fullName, updateFullName } = useFullName();
   const { t, locale, setLocale } = useT();
   const Colors = useColors();
+  const tabBarHeight = useTabBarHeight();
   const themeMode = useThemeStore((s) => s.mode);
   const setThemeMode = useThemeStore((s) => s.setMode);
-  const [pickerOpen, setPickerOpen] = useState<'calcMethod' | 'madhab' | 'language' | 'avatar' | null>(null);
+  const [pickerOpen, setPickerOpen] = useState<'calcMethod' | 'madhab' | 'safetyMargin' | 'language' | 'avatar' | null>(
+    null,
+  );
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState('');
   const avatarSource = resolveAvatarSource(avatarUrl);
 
   const LANGUAGE_OPTIONS = [
@@ -35,13 +65,18 @@ export default function ProfileScreen() {
     { key: 'en', label: t('languageEnglish') },
   ];
 
+  const SAFETY_MARGIN_LABELS = Object.fromEntries(
+    SAFETY_MARGIN_OPTIONS.map((m) => [m, t(SAFETY_MARGIN_KEY[m])]),
+  ) as Record<SafetyMarginMinutes, string>;
+  const SAFETY_MARGIN_PICKER_OPTIONS = SAFETY_MARGIN_OPTIONS.map((m) => ({ key: String(m), label: SAFETY_MARGIN_LABELS[m] }));
+
   return (
     <View className="flex-1 bg-surface">
       <TopAppBar title={t('profileTitle')} />
       <ScrollView
         className="flex-1 px-gutter"
         contentContainerClassName="items-center"
-        contentContainerStyle={{ paddingBottom: 48, paddingTop: 24 }}
+        contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 24 }}
       >
         <Pressable
           onPress={() => setPickerOpen('avatar')}
@@ -58,9 +93,42 @@ export default function ProfileScreen() {
             <Icon name="add" size={16} color="#ffffff" />
           </View>
         </Pressable>
-        <Text className="text-[18px] font-bold text-on-surface">
-          {session?.user.user_metadata?.full_name ?? 'Abdullah'}
-        </Text>
+        {editingName ? (
+          <View className="w-full items-center gap-2">
+            <TextInput
+              value={nameDraft}
+              onChangeText={setNameDraft}
+              autoFocus
+              className="text-[18px] font-bold text-on-surface text-center border-b border-outline-variant px-2 py-1 min-w-[160px]"
+            />
+            <View className="flex-row gap-4">
+              <Pressable onPress={() => setEditingName(false)} className="py-1 px-2">
+                <Text className="text-on-surface-variant text-[13px] font-semibold">{t('cancel')}</Text>
+              </Pressable>
+              <Pressable
+                onPress={() => {
+                  const trimmed = nameDraft.trim();
+                  if (trimmed) updateFullName(trimmed);
+                  setEditingName(false);
+                }}
+                className="py-1 px-2"
+              >
+                <Text className="text-primary text-[13px] font-bold">{t('save')}</Text>
+              </Pressable>
+            </View>
+          </View>
+        ) : (
+          <Pressable
+            onPress={() => {
+              setNameDraft(fullName);
+              setEditingName(true);
+            }}
+            className="flex-row items-center gap-1.5 active:opacity-70"
+          >
+            <Text className="text-[18px] font-bold text-on-surface">{fullName || 'Abdullah'}</Text>
+            <Icon name="edit" size={14} color={Colors.onSurfaceVariant} />
+          </Pressable>
+        )}
         <Text className="text-on-surface-variant">{session?.user.email}</Text>
 
         <View className="mt-8 w-full gap-2">
@@ -89,6 +157,23 @@ export default function ProfileScreen() {
           </Pressable>
 
           <Pressable
+            onPress={() => setPickerOpen('safetyMargin')}
+            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant active:opacity-70"
+          >
+            <View className="flex-row justify-between items-center">
+              <View className="flex-1 pr-2">
+                <Text className="text-on-surface">{t('safetyMarginLabel')}</Text>
+                <Text className="text-on-surface-variant text-[12px] mt-0.5">{t('safetyMarginRecommended')}</Text>
+                <Text className="text-primary text-[12px] mt-0.5 font-semibold">
+                  {SAFETY_MARGIN_LABELS[settings.safetyMarginMinutes]}
+                </Text>
+              </View>
+              <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
+            </View>
+            <Text className="text-on-surface-variant text-[11px] mt-2 leading-4">{t('safetyMarginDescription')}</Text>
+          </Pressable>
+
+          <Pressable
             onPress={() => setPickerOpen('language')}
             className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
           >
@@ -114,7 +199,10 @@ export default function ProfileScreen() {
             />
           </View>
 
-          <Pressable className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70">
+          <Pressable
+            onPress={() => router.push('/notification-settings')}
+            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
+          >
             <Text className="text-on-surface">{t('notificationSettings')}</Text>
             <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
           </Pressable>
@@ -147,6 +235,14 @@ export default function ProfileScreen() {
         options={MADHAB_OPTIONS}
         selectedKey={settings.madhab}
         onSelect={(key) => updateSettings({ madhab: key as MadhabKey })}
+        onClose={() => setPickerOpen(null)}
+      />
+      <OptionPickerModal
+        visible={pickerOpen === 'safetyMargin'}
+        title={t('safetyMarginLabel')}
+        options={SAFETY_MARGIN_PICKER_OPTIONS}
+        selectedKey={String(settings.safetyMarginMinutes)}
+        onSelect={(key) => updateSettings({ safetyMarginMinutes: Number(key) as SafetyMarginMinutes })}
         onClose={() => setPickerOpen(null)}
       />
       <OptionPickerModal

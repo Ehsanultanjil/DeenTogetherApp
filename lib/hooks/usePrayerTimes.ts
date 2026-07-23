@@ -1,8 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from './useLocation';
-import { computePrayerTimes, type CalcMethodKey, type MadhabKey } from '../prayerTimes';
+import {
+  computePrayerTimes,
+  isBeforeTodayFajr,
+  locationDateString,
+  type CalcMethodKey,
+  type MadhabKey,
+  type SafetyMarginMinutes,
+} from '../prayerTimes';
 
-export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: MadhabKey }) {
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: MadhabKey; safetyMarginMinutes: SafetyMarginMinutes }) {
   const { coords, status } = useLocation();
   const [tick, setTick] = useState(() => Date.now());
 
@@ -15,16 +24,35 @@ export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: Ma
     return () => clearInterval(id);
   }, []);
 
-  const times = useMemo(() => {
-    if (!coords) return null;
-    return computePrayerTimes({
+  const { times, ishaDateString } = useMemo(() => {
+    if (!coords) return { times: null, ishaDateString: null };
+    const now = new Date(tick);
+    const params = {
       latitude: coords.latitude,
       longitude: coords.longitude,
-      date: new Date(tick),
       calcMethod: settings.calcMethod,
       madhab: settings.madhab,
-    });
-  }, [coords?.latitude, coords?.longitude, tick, settings.calcMethod, settings.madhab]);
+      safetyMarginMinutes: settings.safetyMarginMinutes,
+    };
+    const todayTimes = computePrayerTimes({ ...params, date: now });
 
-  return { times, locationStatus: status, coords };
+    // Between midnight and today's real Fajr, last night's Isha is still
+    // open — todayTimes' own "isha" entry is today's, not-yet-started one.
+    // Swap just that entry for yesterday's real Isha (→ today's real Fajr),
+    // and hand back which calendar date that completion belongs to.
+    if (isBeforeTodayFajr(todayTimes, now)) {
+      const yesterdayTimes = computePrayerTimes({ ...params, date: new Date(tick - DAY_MS) });
+      const patchedWindows = todayTimes.windows.map((w) =>
+        w.name === 'isha' ? { ...w, start: yesterdayTimes.isha, end: todayTimes.fajr } : w,
+      );
+      return {
+        times: { ...todayTimes, windows: patchedWindows },
+        ishaDateString: locationDateString(todayTimes.timeZone, new Date(tick - DAY_MS)),
+      };
+    }
+
+    return { times: todayTimes, ishaDateString: null };
+  }, [coords?.latitude, coords?.longitude, tick, settings.calcMethod, settings.madhab, settings.safetyMarginMinutes]);
+
+  return { times, locationStatus: status, coords, ishaDateString };
 }

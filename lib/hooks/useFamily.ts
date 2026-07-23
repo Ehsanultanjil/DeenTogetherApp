@@ -1,6 +1,12 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
+import type { WaqtName } from '../prayerTimes';
+
+// Mirrors send_prayer_reminder's server-side cooldown window — used
+// client-side only to render the disabled "Reminder Sent" state; the RPC
+// is what actually enforces it.
+export const REMINDER_COOLDOWN_MS = 30 * 60 * 1000;
 
 export type Membership = {
   familyId: string;
@@ -16,6 +22,8 @@ export type FamilyMemberStatus = {
   role: string;
   completed_count: number;
   percent: number;
+  current_prayer_completed: boolean;
+  last_reminded_at: string | null;
 };
 
 function useUserId() {
@@ -62,15 +70,52 @@ export function useCurrentFamilyId() {
   });
 }
 
-export function useFamilyTodayStatus(familyId: string | null) {
+export function useFamilyTodayStatus(familyId: string | null, currentPrayer: WaqtName | null = null) {
   return useQuery({
-    queryKey: ['familyTodayStatus', familyId],
+    queryKey: ['familyTodayStatus', familyId, currentPrayer],
     enabled: !!familyId,
     refetchInterval: false,
     queryFn: async (): Promise<FamilyMemberStatus[]> => {
-      const { data, error } = await supabase.rpc('get_family_today_status', { p_family_id: familyId! });
+      const { data, error } = await supabase.rpc('get_family_today_status', {
+        p_family_id: familyId!,
+        p_current_prayer: currentPrayer ?? undefined,
+      });
       if (error) throw error;
       return data ?? [];
+    },
+  });
+}
+
+export function useSendReminder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { recipientId: string; prayerName: WaqtName; prayerDate: string }) => {
+      const { error: rpcError } = await supabase.rpc('send_prayer_reminder', {
+        p_recipient_id: vars.recipientId,
+        p_prayer_name: vars.prayerName,
+        p_prayer_date: vars.prayerDate,
+      });
+      if (rpcError) throw rpcError;
+
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // Delivery is best-effort — the reminder is already recorded (and
+      // cooldown/spam-proofed) by the RPC above regardless of whether the
+      // push actually lands, so a function-invoke failure here isn't fatal.
+      await supabase.functions
+        .invoke('send-reminder', {
+          body: {
+            recipientId: vars.recipientId,
+            prayerName: vars.prayerName,
+            senderName: user?.user_metadata?.full_name ?? 'A family member',
+          },
+        })
+        .catch(() => {});
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['familyTodayStatus'] });
     },
   });
 }
@@ -125,6 +170,31 @@ export function useLeaveFamily() {
   return useMutation({
     mutationFn: async (familyId: string) => {
       const { error } = await supabase.rpc('leave_family', { p_family_id: familyId });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function usePromoteMember() {
+  const invalidate = useInvalidateFamilyQueries();
+  return useMutation({
+    mutationFn: async (vars: { familyId: string; newAdminId: string }) => {
+      const { error } = await supabase.rpc('promote_member', {
+        p_family_id: vars.familyId,
+        p_new_admin_id: vars.newAdminId,
+      });
+      if (error) throw error;
+    },
+    onSuccess: invalidate,
+  });
+}
+
+export function useDeleteFamily() {
+  const invalidate = useInvalidateFamilyQueries();
+  return useMutation({
+    mutationFn: async (familyId: string) => {
+      const { error } = await supabase.rpc('delete_family', { p_family_id: familyId });
       if (error) throw error;
     },
     onSuccess: invalidate,

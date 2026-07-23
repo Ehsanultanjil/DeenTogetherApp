@@ -8,7 +8,7 @@ export type WaqtName = 'fajr' | 'dhuhr' | 'asr' | 'maghrib' | 'isha';
 export const CALC_METHOD_LABELS: Record<CalcMethodKey, string> = {
   MuslimWorldLeague: 'Muslim World League',
   Egyptian: 'Egyptian General Authority',
-  Karachi: 'University of Karachi',
+  Karachi: 'University of Islamic Sciences, Karachi (Recommended for Bangladesh)',
   UmmAlQura: 'Umm al-Qura, Makkah',
   Dubai: 'Dubai',
   MoonsightingCommittee: 'Moonsighting Committee',
@@ -27,6 +27,10 @@ export const MADHAB_LABELS: Record<MadhabKey, string> = {
   shafii: "Shafi'i",
   hanbali: 'Hanbali',
 };
+
+export const SAFETY_MARGIN_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
+export type SafetyMarginMinutes = (typeof SAFETY_MARGIN_OPTIONS)[number];
+export const DEFAULT_SAFETY_MARGIN_MINUTES: SafetyMarginMinutes = 1;
 
 // adhan only models two Asr juristic rules (1x vs 2x shadow length).
 // Maliki/Shafi'i/Hanbali share the "standard" 1x calculation; Hanafi uses 2x.
@@ -87,14 +91,41 @@ export function locationDateString(timeZone: string, reference: Date = new Date(
   return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
 }
 
+// Adds the user's Prayer Time Safety Margin on top of adhan's exact
+// astronomical result. Sunrise/sunset are informational (not a waqt start)
+// and are never shifted — only the five waqt boundaries are.
+function addMinutes(d: Date, minutes: number): Date {
+  return minutes ? new Date(d.getTime() + minutes * 60_000) : d;
+}
+
+function withSafetyMargin(pt: PrayerTimes, safetyMarginMinutes: number) {
+  return {
+    fajr: addMinutes(pt.fajr, safetyMarginMinutes),
+    sunrise: pt.sunrise,
+    dhuhr: addMinutes(pt.dhuhr, safetyMarginMinutes),
+    asr: addMinutes(pt.asr, safetyMarginMinutes),
+    sunset: pt.sunset,
+    maghrib: addMinutes(pt.maghrib, safetyMarginMinutes),
+    isha: addMinutes(pt.isha, safetyMarginMinutes),
+  };
+}
+
 export function computePrayerTimes(params: {
   latitude: number;
   longitude: number;
   date?: Date;
   calcMethod?: CalcMethodKey;
   madhab?: MadhabKey;
+  safetyMarginMinutes?: number;
 }): DayPrayerTimes {
-  const { latitude, longitude, date = new Date(), calcMethod = 'MuslimWorldLeague', madhab = 'shafii' } = params;
+  const {
+    latitude,
+    longitude,
+    date = new Date(),
+    calcMethod = 'MuslimWorldLeague',
+    madhab = 'shafii',
+    safetyMarginMinutes = 0,
+  } = params;
 
   const timeZone = tzlookup(latitude, longitude);
   const coordinates = new Coordinates(latitude, longitude);
@@ -110,8 +141,11 @@ export function computePrayerTimes(params: {
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
 
-  const pt = new PrayerTimes(coordinates, today, calcParams);
-  const ptTomorrow = new PrayerTimes(coordinates, tomorrow, calcParams);
+  // adhan computes the exact astronomical times first, unmodified — the
+  // safety margin is applied only in this post-processing step below, never
+  // fed back into CalculationParameters.
+  const pt = withSafetyMargin(new PrayerTimes(coordinates, today, calcParams), safetyMarginMinutes);
+  const ptTomorrow = withSafetyMargin(new PrayerTimes(coordinates, tomorrow, calcParams), safetyMarginMinutes);
 
   const windows: WaqtWindow[] = [
     { name: 'fajr', start: pt.fajr, end: pt.sunrise },
@@ -144,12 +178,38 @@ export function computePrayerTimes(params: {
 
 export function getCurrentWaqt(windows: WaqtWindow[], now: Date = new Date()) {
   const nowMs = now.getTime();
+
+  // Between midnight and today's Fajr, it's still *last night's* Isha —
+  // but `windows` only covers today, so the last element (today's Isha,
+  // ending at *tomorrow's* Fajr) would otherwise be picked as the
+  // fallback, making remaining time balloon to ~24h+ too long. The
+  // correct end boundary here is today's Fajr start.
+  if (nowMs < windows[0].start.getTime()) {
+    const isha = windows[windows.length - 1];
+    const remainingMs = windows[0].start.getTime() - nowMs;
+    return {
+      current: { name: isha.name, start: isha.start, end: windows[0].start },
+      remainingMs: remainingMs > 0 ? remainingMs : 0,
+    };
+  }
+
   let current = windows[windows.length - 1];
   for (const w of windows) {
     if (nowMs >= w.start.getTime()) current = w;
   }
   const remainingMs = current.end.getTime() - nowMs;
   return { current, remainingMs: remainingMs > 0 ? remainingMs : 0 };
+}
+
+export function getCurrentMakruh(makruh: MakruhWindow[], now: Date = new Date()): MakruhWindow | null {
+  const nowMs = now.getTime();
+  return makruh.find((m) => nowMs >= m.start.getTime() && nowMs < m.end.getTime()) ?? null;
+}
+
+// True between local midnight and today's real Fajr — the gap where last
+// night's Isha is still open but hasn't yet rolled into "today".
+export function isBeforeTodayFajr(times: DayPrayerTimes, now: Date = new Date()): boolean {
+  return now.getTime() < times.windows[0].start.getTime();
 }
 
 export function formatTime(d: Date, timeZone?: string, localeTag?: string) {

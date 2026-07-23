@@ -4,7 +4,7 @@ import { Text } from '../../components/Text';
 import { TextInput } from '../../components/TextInput';
 import { Link, useRouter } from 'expo-router';
 import { supabase } from '../../lib/supabase';
-import { Icon } from '../../components/Icon';
+import { AppLogo } from '../../components/AppLogo';
 import { useT } from '../../lib/hooks/useT';
 import { useKeyboardHeight } from '../../lib/hooks/useKeyboardHeight';
 
@@ -41,8 +41,8 @@ export default function Login() {
         keyboardShouldPersistTaps="handled"
       >
         <View className="items-center mb-8">
-          <View className="mb-md bg-primary-container p-6 rounded-2xl shadow-lg items-center justify-center">
-            <Icon name="mosque" filled size={48} color="#a8e7c5" />
+          <View className="mb-md rounded-2xl shadow-lg overflow-hidden">
+            <AppLogo size={96} />
           </View>
           <Text className="text-[24px] text-primary font-bold">{t('welcomeBack')}</Text>
           <Text className="text-[14px] text-on-surface-variant mt-1">{t('signInSubtitle')}</Text>

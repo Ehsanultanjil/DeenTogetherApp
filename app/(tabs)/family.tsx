@@ -8,8 +8,10 @@ import { Share } from 'react-native';
 import { TopAppBar } from '../../components/TopAppBar';
 import { InviteCodeCard } from '../../components/InviteCodeCard';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
+import { FamilyDeleteModal } from '../../components/FamilyDeleteModal';
 import { Icon } from '../../components/Icon';
 import { useColors } from '../../constants/theme';
+import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import {
   useMyMemberships,
   useCurrentFamilyId,
@@ -17,9 +19,17 @@ import {
   useCreateFamily,
   useSwitchFamily,
   useLeaveFamily,
+  usePromoteMember,
+  useDeleteFamily,
+  useSendReminder,
+  REMINDER_COOLDOWN_MS,
 } from '../../lib/hooks/useFamily';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useT } from '../../lib/hooks/useT';
+import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
+import { usePrayerTimes } from '../../lib/hooks/usePrayerTimes';
+import { useClockTick } from '../../lib/hooks/useClockTick';
+import { getCurrentWaqt, locationDateString } from '../../lib/prayerTimes';
 
 function CreateFamilyPrompt() {
   const router = useRouter();
@@ -64,13 +74,24 @@ export default function FamilyScreen() {
   const { t, n } = useT();
   const Colors = useColors();
   const [copied, setCopied] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const tabBarHeight = useTabBarHeight();
 
   const { data: memberships, isLoading: membershipsLoading } = useMyMemberships();
   const { data: currentFamilyId, isLoading: currentLoading } = useCurrentFamilyId();
   const switchFamily = useSwitchFamily();
   const leaveFamily = useLeaveFamily();
+  const promoteMember = usePromoteMember();
+  const deleteFamily = useDeleteFamily();
+  const sendReminder = useSendReminder();
 
-  const { data: members } = useFamilyTodayStatus(currentFamilyId ?? null);
+  const { settings } = usePrayerSettings();
+  const { times } = usePrayerTimes(settings);
+  const now = useClockTick(60_000);
+  const currentWaqt = times ? getCurrentWaqt(times.windows, now).current.name : null;
+  const dateString = times ? locationDateString(times.timeZone, now) : null;
+
+  const { data: members } = useFamilyTodayStatus(currentFamilyId ?? null, currentWaqt);
 
   const current = memberships?.find((m) => m.familyId === currentFamilyId);
 
@@ -98,7 +119,7 @@ export default function FamilyScreen() {
     return (
       <View className="flex-1 bg-surface">
         <TopAppBar title={t('myFamilyTitle')} />
-        <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingTop: 24, paddingBottom: 48 }}>
+        <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingTop: 24, paddingBottom: tabBarHeight + 16 }}>
           <CreateFamilyPrompt />
         </ScrollView>
       </View>
@@ -108,7 +129,7 @@ export default function FamilyScreen() {
   return (
     <View className="flex-1 bg-surface">
       <TopAppBar title={t('myFamilyTitle')} />
-      <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: 48, paddingTop: 16 }}>
+      <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 16 }}>
         {memberships.length > 1 ? (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} className="mb-4" contentContainerClassName="gap-2">
             {memberships.map((m) => (
@@ -129,10 +150,13 @@ export default function FamilyScreen() {
 
         {current ? (
           <View className="mb-8">
-            <InviteCodeCard code={current.inviteCode} onShare={shareCode} title={t('inviteMember')} subtitle={t('shareCodeSubtitle')} />
-            <Pressable onPress={copyCode} className="mt-2 items-center py-1">
-              <Text className="text-primary text-[13px] font-semibold">{t('copyCodeInstead')}</Text>
-            </Pressable>
+            <InviteCodeCard
+              code={current.inviteCode}
+              onShare={shareCode}
+              onCopy={copyCode}
+              title={t('inviteMember')}
+              subtitle={t('shareCodeSubtitle')}
+            />
           </View>
         ) : null}
 
@@ -143,23 +167,32 @@ export default function FamilyScreen() {
           </View>
         </View>
         <View className="gap-3">
-          {(members ?? []).map((m) => (
-            <FamilyMemberRow
-              key={m.user_id}
-              name={
-                m.user_id === session?.user.id
-                  ? `${m.full_name ?? t('memberRole')} ${t('youSuffix')}`
-                  : (m.full_name ?? t('memberRole'))
-              }
-              role={m.role === 'admin' ? t('familyAdmin') : t('memberRole')}
-              progressLabel={`${n(m.percent)}%`}
-              dotsCompleted={0}
-              avatarUri={m.avatar_url ?? undefined}
-              isAdmin={m.role === 'admin'}
-              size="lg"
-              todayLabel={t('todayLabel')}
-            />
-          ))}
+          {(members ?? []).map((m) => {
+            const isSelf = m.user_id === session?.user.id;
+            const onCooldown =
+              !!m.last_reminded_at && Date.now() - new Date(m.last_reminded_at).getTime() < REMINDER_COOLDOWN_MS;
+            return (
+              <FamilyMemberRow
+                key={m.user_id}
+                name={isSelf ? `${m.full_name ?? t('memberRole')} ${t('youSuffix')}` : (m.full_name ?? t('memberRole'))}
+                role={m.role === 'admin' ? t('familyAdmin') : t('memberRole')}
+                progressLabel={`${n(m.percent)}%`}
+                dotsCompleted={0}
+                avatarUri={m.avatar_url ?? undefined}
+                isAdmin={m.role === 'admin'}
+                size="lg"
+                todayLabel={t('todayLabel')}
+                showReminder={!isSelf && !!currentWaqt && !m.current_prayer_completed}
+                onCooldown={onCooldown}
+                remindLabel={t('remindButton')}
+                reminderSentLabel={t('reminderSent')}
+                onRemind={() => {
+                  if (!currentWaqt || !dateString) return;
+                  sendReminder.mutate({ recipientId: m.user_id, prayerName: currentWaqt, prayerDate: dateString });
+                }}
+              />
+            );
+          })}
         </View>
 
         <View className="mt-8 items-center gap-2">
@@ -167,19 +200,59 @@ export default function FamilyScreen() {
             <Icon name="groups" color={Colors.primary} />
             <Text className="text-primary text-[14px] font-bold">{t('joinAnotherFamily')}</Text>
           </Pressable>
-          <Pressable
-            onPress={() => current && leaveFamily.mutate(current.familyId)}
-            className="flex-row items-center gap-2 px-6 py-3"
-          >
-            <Text className="text-error text-[14px] font-bold">{t('leaveThisFamily')}</Text>
-          </Pressable>
+          {current?.role === 'admin' ? (
+            <Pressable onPress={() => setDeleteModalOpen(true)} className="flex-row items-center gap-2 px-6 py-3">
+              <Text className="text-error text-[14px] font-bold">{t('deleteFamily')}</Text>
+            </Pressable>
+          ) : (
+            <Pressable
+              onPress={() => current && leaveFamily.mutate(current.familyId)}
+              className="flex-row items-center gap-2 px-6 py-3"
+            >
+              <Text className="text-error text-[14px] font-bold">{t('leaveThisFamily')}</Text>
+            </Pressable>
+          )}
         </View>
       </ScrollView>
 
       {copied ? (
-        <View className="absolute bottom-8 self-center bg-on-background px-6 py-3 rounded-full shadow-lg">
+        <View
+          style={{ position: 'absolute', bottom: tabBarHeight + 16, alignSelf: 'center' }}
+          className="bg-on-background px-6 py-3 rounded-full shadow-lg"
+        >
           <Text className="text-background text-[14px] font-bold">{t('codeCopied')}</Text>
         </View>
+      ) : null}
+
+      {current ? (
+        <FamilyDeleteModal
+          visible={deleteModalOpen}
+          onClose={() => setDeleteModalOpen(false)}
+          members={(members ?? [])
+            .filter((m) => m.user_id !== session?.user.id)
+            .map((m) => ({ user_id: m.user_id, full_name: m.full_name, avatar_url: m.avatar_url }))}
+          onPromoteAndLeave={(userId) => {
+            promoteMember.mutate(
+              { familyId: current.familyId, newAdminId: userId },
+              { onSuccess: () => leaveFamily.mutate(current.familyId) },
+            );
+          }}
+          onDeleteEntirely={() => deleteFamily.mutate(current.familyId)}
+          labels={{
+            title: t('deleteFamilyModalTitle'),
+            promoteAndLeave: t('promoteAndLeave'),
+            deleteEntirely: t('deleteFamilyEntirely'),
+            choosePersonTitle: t('choosePersonTitle'),
+            noMembersToPromote: t('noMembersToPromote'),
+            confirmPromoteTitle: t('confirmPromoteTitle'),
+            confirmPromoteBody: (name) => t('confirmPromoteBody', { name }),
+            confirmDeleteTitle: t('confirmDeleteTitle'),
+            confirmDeleteBody: t('confirmDeleteBody'),
+            confirm: t('confirmAction'),
+            cancel: t('cancel'),
+            memberRole: t('memberRole'),
+          }}
+        />
       ) : null}
     </View>
   );

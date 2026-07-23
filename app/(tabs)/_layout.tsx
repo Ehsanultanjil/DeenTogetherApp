@@ -1,27 +1,26 @@
 import { useEffect } from 'react';
-import { Redirect, Tabs } from 'expo-router';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Icon } from '../../components/Icon';
-import { DarkColors } from '../../constants/theme';
-import type { MaterialSymbolName } from '../../constants/materialSymbols';
+import { View } from 'react-native';
+import { Tabs } from 'expo-router';
+import { AnimatedTabBar } from '../../components/AnimatedTabBar';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useT } from '../../lib/hooks/useT';
-import { FONT_BY_WEIGHT } from '../../components/fontByWeight';
 import { useCurrentFamilyId } from '../../lib/hooks/useFamily';
 import { useFamilyRealtime } from '../../lib/hooks/useFamilyRealtime';
 import { requestPrayerNotificationPermission } from '../../lib/hooks/usePrayerNotifications';
+import { usePushToken } from '../../lib/hooks/usePushToken';
+import { useSyncOnResume } from '../../lib/hooks/useSyncOnResume';
 
-const TAB_ICON: Record<string, MaterialSymbolName> = {
-  index: 'home',
-  calendar: 'event_note',
-  dua: 'volunteer_activism',
-  family: 'groups',
-  profile: 'person',
-};
-
+// Which route to actively navigate to is decided centrally in
+// app/_layout.tsx's RootNavigation (see the comment there) — but that's a
+// separate concern from whether THIS screen is safe to render. Android's
+// back gesture can briefly land the navigator back on a route already in
+// its history (e.g. right after logout), so this still needs its own
+// passive refusal-to-render as a safety net — critically, just returning
+// null here, not issuing a competing navigation call of its own, which is
+// what caused the stuck/thrashing transitions before.
 export default function TabsLayout() {
   const session = useAuthStore((s) => s.session);
-  const { t, locale } = useT();
+  const { t } = useT();
   // Single shared subscription for the whole authenticated session — tab
   // screens stay mounted in the background, so calling this per-screen
   // (Home AND Family both wanting it) double-subscribes the same Supabase
@@ -29,40 +28,19 @@ export default function TabsLayout() {
   // ... after subscribe()".
   const { data: currentFamilyId } = useCurrentFamilyId();
   useFamilyRealtime(currentFamilyId ?? null);
-  const insets = useSafeAreaInsets();
+  usePushToken();
+  useSyncOnResume();
 
   useEffect(() => {
     if (session) requestPrayerNotificationPermission();
   }, [session]);
 
   if (!session) {
-    return <Redirect href="/(auth)/login" />;
+    return <View className="flex-1 bg-surface" />;
   }
 
   return (
-    <Tabs
-      screenOptions={({ route }) => ({
-        headerShown: false,
-        // Bottom nav stays dark regardless of the app's light/dark theme —
-        // a deliberate fixed-chrome look (M3 "inverse" navigation bar
-        // pattern), not theme-following, so it always uses DarkColors.
-        tabBarActiveTintColor: DarkColors.onPrimaryContainer,
-        tabBarInactiveTintColor: DarkColors.onSurfaceVariant,
-        tabBarLabelStyle: { fontSize: 12, fontWeight: '600', fontFamily: FONT_BY_WEIGHT[locale][600] },
-        tabBarStyle: {
-          height: 64 + insets.bottom,
-          paddingTop: 8,
-          paddingBottom: 8 + insets.bottom,
-          borderTopWidth: 0,
-          backgroundColor: DarkColors.surfaceContainerLow,
-        },
-        tabBarIcon: ({ focused, color }) => (
-          <Icon name={TAB_ICON[route.name]} color={color as string} filled={focused} />
-        ),
-        tabBarItemStyle: { borderRadius: 9999 },
-        tabBarActiveBackgroundColor: DarkColors.primaryContainer,
-      })}
-    >
+    <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AnimatedTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('tabHome') }} />
       <Tabs.Screen name="calendar" options={{ title: t('tabCalendar') }} />
       <Tabs.Screen name="dua" options={{ title: t('tabDua') }} />

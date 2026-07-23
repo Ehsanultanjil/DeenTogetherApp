@@ -9,7 +9,8 @@ import { useColors } from '../constants/theme';
 import { usePrayerTimes } from '../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../lib/hooks/useClockTick';
 import { usePrayerSettings } from '../lib/hooks/usePrayerSettings';
-import { useTodayPrayerLogs } from '../lib/hooks/usePrayerLogs';
+import { useTodayPrayerLogs, useIshaCarryover } from '../lib/hooks/usePrayerLogs';
+import { useTodayQuranLog } from '../lib/hooks/useQuranLog';
 import { useT } from '../lib/hooks/useT';
 import { formatTime, locationDateString, type WaqtName } from '../lib/prayerTimes';
 import type { MaterialSymbolName } from '../constants/materialSymbols';
@@ -35,10 +36,12 @@ export default function TodayPrayers() {
   const { t, n, localeTag } = useT();
   const Colors = useColors();
   const { settings } = usePrayerSettings();
-  const { times, locationStatus } = usePrayerTimes(settings);
+  const { times, locationStatus, ishaDateString } = usePrayerTimes(settings);
   const now = useClockTick(60_000);
   const dateString = times ? locationDateString(times.timeZone, now) : null;
   const { completed, toggle } = useTodayPrayerLogs(dateString);
+  const ishaCarryover = useIshaCarryover(ishaDateString);
+  const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(dateString);
 
   const completedCount = Object.values(completed).filter(Boolean).length;
   const percentage = Math.round((completedCount / 5) * 100);
@@ -85,17 +88,31 @@ export default function TodayPrayers() {
         </View>
 
         <View className="gap-3">
-          {times.windows.map((w) => (
-            <PrayerCard
-              key={w.name}
-              name={t(WAQT_KEY[w.name])}
-              timeRange={`${formatTime(w.start, times.timeZone, localeTag)} – ${formatTime(w.end, times.timeZone, localeTag)}`}
-              completed={completed[w.name]}
-              icon={WAQT_ICON[w.name]}
-              onToggle={() => toggle(w.name, !completed[w.name])}
-              disabled={now < w.start}
-            />
-          ))}
+          {times.windows.map((w) => {
+            const isCarryoverIsha = w.name === 'isha' && !!ishaDateString;
+            const isDone = isCarryoverIsha ? ishaCarryover.completed : completed[w.name];
+            return (
+              <PrayerCard
+                key={w.name}
+                name={t(WAQT_KEY[w.name])}
+                timeRange={`${formatTime(w.start, times.timeZone, localeTag)} – ${formatTime(w.end, times.timeZone, localeTag)}`}
+                completed={isDone}
+                icon={WAQT_ICON[w.name]}
+                onToggle={() => (isCarryoverIsha ? ishaCarryover.toggle(!isDone) : toggle(w.name, !isDone))}
+                disabled={now < w.start}
+              />
+            );
+          })}
+        </View>
+
+        <View className="mt-3">
+          <PrayerCard
+            name={t('readQuranToday')}
+            timeRange={t('quranAnytimeLabel')}
+            completed={quranCompleted}
+            icon="menu_book"
+            onToggle={() => toggleQuran(!quranCompleted)}
+          />
         </View>
 
         <View className="mt-8">

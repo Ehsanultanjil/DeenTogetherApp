@@ -1,24 +1,42 @@
-import { Pressable, View } from 'react-native';
+import { useState } from 'react';
+import { ActivityIndicator, Pressable, View } from 'react-native';
 import { Text } from '../components/Text';
-import { Redirect, useRouter } from 'expo-router';
-import { Icon } from '../components/Icon';
-import { useAuthStore } from '../store/useAuthStore';
+import { useRouter } from 'expo-router';
+import { AppLogo } from '../components/AppLogo';
 import { useT } from '../lib/hooks/useT';
+import { signInWithGoogle } from '../lib/auth/googleSignIn';
+import { useColors } from '../constants/theme';
 
+// Auth-based routing (redirecting away once signed in) is centralized in
+// app/_layout.tsx's RootNavigation — see the comment there for why. This
+// screen just renders the sign-in options.
 export default function Splash() {
   const router = useRouter();
-  const session = useAuthStore((s) => s.session);
   const { t } = useT();
+  const Colors = useColors();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [googleError, setGoogleError] = useState<string | null>(null);
 
-  if (session) {
-    return <Redirect href="/(tabs)" />;
-  }
+  const onGoogleSignIn = async () => {
+    setGoogleError(null);
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+      // Session updates via the auth listener in app/_layout.tsx —
+      // RootNavigation there reacts and routes to /(tabs).
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (message !== 'CANCELLED') setGoogleError(message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
 
   return (
     <View className="flex-1 bg-surface justify-between">
       <View className="flex-1 items-center justify-center px-gutter">
-        <View className="mb-md bg-primary-container p-6 rounded-2xl shadow-lg items-center justify-center">
-          <Icon name="mosque" filled size={64} color="#a8e7c5" />
+        <View className="mb-md rounded-2xl shadow-lg overflow-hidden">
+          <AppLogo size={112} />
         </View>
         <View className="items-center">
           <Text className="text-[28px] text-primary tracking-tight font-bold">DeenTogether</Text>
@@ -26,6 +44,28 @@ export default function Splash() {
         </View>
       </View>
       <View className="px-container-margin pb-xxl gap-4">
+        {googleError ? <Text className="text-error text-[13px] text-center">{googleError}</Text> : null}
+        <Pressable
+          onPress={onGoogleSignIn}
+          disabled={googleLoading}
+          className="w-full h-14 bg-surface-container-lowest border border-outline-variant rounded-full items-center justify-center active:opacity-90 flex-row gap-2"
+        >
+          {googleLoading ? (
+            <ActivityIndicator color={Colors.primary} />
+          ) : (
+            <>
+              <Text className="text-on-surface text-[16px] font-bold">G</Text>
+              <Text className="text-on-surface text-[16px] font-bold">{t('continueWithGoogle')}</Text>
+            </>
+          )}
+        </Pressable>
+
+        <View className="flex-row items-center gap-3">
+          <View className="flex-1 h-[1px] bg-outline-variant/40" />
+          <Text className="text-[12px] text-on-surface-variant">{t('orDivider')}</Text>
+          <View className="flex-1 h-[1px] bg-outline-variant/40" />
+        </View>
+
         <Pressable
           onPress={() => router.push('/(auth)/login')}
           className="w-full h-14 bg-primary rounded-full items-center justify-center shadow-md active:opacity-90"

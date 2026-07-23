@@ -1,12 +1,7 @@
-import { Redirect, Stack } from 'expo-router';
-import { useAuthStore } from '../../store/useAuthStore';
+import { Stack } from 'expo-router';
 
+// Auth-based routing is centralized in app/_layout.tsx's RootNavigation —
+// see the comment there for why. This layout just renders its screens.
 export default function AuthLayout() {
-  const session = useAuthStore((s) => s.session);
-
-  if (session) {
-    return <Redirect href="/(tabs)" />;
-  }
-
   return <Stack screenOptions={{ headerShown: false }} />;
 }
