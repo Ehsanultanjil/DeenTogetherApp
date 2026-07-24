@@ -65,13 +65,20 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       // No cache at all yet — try the last fix saved server-side before
       // asking the OS for permission, so a fresh install for a returning
       // user still opens with *something* instead of "finding location".
-      const { data } = await supabase
-        .from('profiles')
-        .select('last_latitude, last_longitude')
-        .eq('id', userId)
-        .maybeSingle();
-      if (data?.last_latitude != null && data?.last_longitude != null) {
-        set({ coords: { latitude: data.last_latitude, longitude: data.last_longitude }, status: 'granted' });
+      // Guarded (unlike the rest of this branch used to be) so a flaky
+      // request here can't violate this function's own "never throws"
+      // contract and abort whatever called it (e.g. useSyncOnResume).
+      try {
+        const { data } = await supabase
+          .from('profiles')
+          .select('last_latitude, last_longitude')
+          .eq('id', userId)
+          .maybeSingle();
+        if (data?.last_latitude != null && data?.last_longitude != null) {
+          set({ coords: { latitude: data.last_latitude, longitude: data.last_longitude }, status: 'granted' });
+        }
+      } catch {
+        // Fall through to the normal GPS/permission flow below.
       }
     }
 

@@ -15,8 +15,9 @@ const EMPTY_COMPLETION: CompletionMap = {
 // day-detail view. Unlike useTodayPrayerLogs this never calls
 // ensure_today_prayer_rows, so browsing a date with no logged prayers just
 // shows everything as not-done instead of writing placeholder rows for it.
-export function useDayPrayerLogs(dateString: string | null) {
-  const userId = useAuthStore((s) => s.session?.user.id);
+export function useDayPrayerLogs(dateString: string | null, targetUserId?: string) {
+  const ownUserId = useAuthStore((s) => s.session?.user.id);
+  const userId = targetUserId ?? ownUserId;
 
   const query = useQuery({
     queryKey: ['dayPrayers', userId, dateString],

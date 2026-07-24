@@ -211,7 +211,7 @@ export default function FamilyScreen() {
         <View className="gap-3">
           {(members ?? []).map((m) => {
             const isSelf = m.user_id === session?.user.id;
-            return (
+            const row = (
               <FamilyMemberRow
                 key={m.user_id}
                 name={isSelf ? `${m.full_name ?? t('memberRole')} ${t('youSuffix')}` : (m.full_name ?? t('memberRole'))}
@@ -223,6 +223,15 @@ export default function FamilyScreen() {
                 size="lg"
                 todayLabel={t('todayLabel')}
               />
+            );
+            if (isSelf) return row;
+            return (
+              <Pressable
+                key={m.user_id}
+                onPress={() => router.push({ pathname: '/family/member-calendar', params: { userId: m.user_id, name: m.full_name ?? t('memberRole') } })}
+              >
+                {row}
+              </Pressable>
             );
           })}
         </View>

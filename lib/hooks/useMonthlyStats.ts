@@ -17,8 +17,9 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
-export function useMonthlyStats(year: number, month: number) {
-  const userId = useAuthStore((s) => s.session?.user.id);
+export function useMonthlyStats(year: number, month: number, targetUserId?: string) {
+  const ownUserId = useAuthStore((s) => s.session?.user.id);
+  const userId = targetUserId ?? ownUserId;
   return useQuery({
     queryKey: ['monthlyStats', userId, year, month],
     enabled: !!userId,
@@ -45,8 +46,9 @@ export function useMonthlyStats(year: number, month: number) {
 // (31 days x 5 prayers) — fetch raw and aggregate client-side rather than
 // add another RPC just for this. Quran rows for the month are at most 31,
 // fetched alongside and merged into the same per-day map.
-export function useMonthlyDayStatus(year: number, month: number) {
-  const userId = useAuthStore((s) => s.session?.user.id);
+export function useMonthlyDayStatus(year: number, month: number, targetUserId?: string) {
+  const ownUserId = useAuthStore((s) => s.session?.user.id);
+  const userId = targetUserId ?? ownUserId;
   const startDate = `${year}-${pad(month)}-01`;
   const endDate = month === 12 ? `${year + 1}-01-01` : `${year}-${pad(month + 1)}-01`;
 

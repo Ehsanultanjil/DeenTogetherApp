@@ -49,6 +49,13 @@ const MISSED_SUFFIX: Record<Locale, string> = {
   bn: 'মিস হয়েছে',
 };
 
+// Android already shows the app's own name/icon in the notification's OS
+// chrome — repeating "DeenTogether" as our own title just doubled it up.
+export const PRAYER_TIME_TITLE: Record<Locale, string> = {
+  en: 'Prayer Time',
+  bn: 'নামাজের সময় হয়েছে',
+};
+
 export function waqtLabel(waqt: WaqtName, locale: Locale) {
   return WAQT_LABEL[waqt][locale];
 }

@@ -29,11 +29,32 @@ export function useSyncOnResume() {
     useSyncStatusStore.getState().setOnline(online);
     if (!online) return;
 
-    await useLocationStore.getState().refresh(userId);
-    for (const key of FAMILY_QUERY_KEYS) {
-      queryClient.invalidateQueries({ queryKey: [key] });
+    // runSync first, before anything else: it's the only thing that
+    // replays queued offline writes and corrects the cache, and it's
+    // racing React Query's own refetchOnReconnect/refetchOnMount (which
+    // fire independently off the same reconnect event, see app/_layout.tsx's
+    // onlineManager wiring) — every millisecond this is delayed behind
+    // slower work (GPS) is a window where a stale server read can clobber
+    // an optimistic local edit that hasn't been synced yet. Wrapped in
+    // try/catch so a failure in the (lower-priority, best-effort) location
+    // refresh below can never prevent this from running — reproduced: an
+    // offline prayer-toggle permanently reverting because an unguarded
+    // exception here aborted resync() before runSync ever ran.
+    try {
+      await runSync(queryClient);
+    } catch {
+      // runSync already tracks its own status/retry state internally.
     }
-    await runSync(queryClient);
+
+    try {
+      await useLocationStore.getState().refresh(userId);
+      for (const key of FAMILY_QUERY_KEYS) {
+        queryClient.invalidateQueries({ queryKey: [key] });
+      }
+    } catch {
+      // Best-effort — location/family refresh failing shouldn't matter
+      // beyond just not refreshing this cycle.
+    }
   };
 
   useEffect(() => {

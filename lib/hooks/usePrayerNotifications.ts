@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import { PRAYER_CHANNEL_ID, WAQT_ORDER, missedLine, notificationIdFor, startedLine } from '../notifications/config';
+import { PRAYER_CHANNEL_ID, PRAYER_TIME_TITLE, WAQT_ORDER, missedLine, notificationIdFor, startedLine } from '../notifications/config';
 import type { CompletionMap } from './usePrayerLogs';
 import { getCurrentWaqt, type DayPrayerTimes, type WaqtName } from '../prayerTimes';
 import type { Locale } from '../../store/useLocaleStore';
@@ -93,7 +93,7 @@ async function syncNotifications(
     await Notifications.scheduleNotificationAsync({
       identifier,
       content: {
-        title: 'DeenTogether',
+        title: PRAYER_TIME_TITLE[locale],
         body: bodyLines.join('\n'),
         data: { waqt: w.name, dateString, locale },
       },

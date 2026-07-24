@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import { Text } from '../../components/Text';
 import { useRouter } from 'expo-router';
@@ -253,7 +253,7 @@ export default function Home() {
                     </Text>
                   </View>
                   {w.name === 'isha' ? (
-                    <Text className="text-[10px] text-on-primary-container opacity-70 px-2.5 pt-0.5">
+                    <Text className="text-[10px] text-on-primary-container opacity-70 px-2.5 pt-0.5 text-right">
                       {t('ishaMakruhNote', { time: formatTime(moddhorat, times.timeZone, localeTag) })}
                     </Text>
                   ) : null}
@@ -311,7 +311,17 @@ export default function Home() {
           <View className="flex-row gap-2 mb-3">
             {times.makruh.map((m) => (
               <View key={m.key} className="flex-1 bg-error/10 rounded-xl p-3 items-center border border-error/20">
-                <Text className="text-[12px] font-bold text-error text-center">{t(MAKRUH_KEY[m.key])}</Text>
+                <View className="flex-row items-center gap-1">
+                  <Text className="text-[12px] font-bold text-error text-center">{t(MAKRUH_KEY[m.key])}</Text>
+                  {m.key === 'sunset' ? (
+                    <Pressable
+                      onPress={() => Alert.alert(t('sunsetExceptionTitle'), t('sunsetExceptionBody'))}
+                      hitSlop={8}
+                    >
+                      <Icon name="info" size={13} color={Colors.error} />
+                    </Pressable>
+                  ) : null}
+                </View>
                 <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
                   {formatTime(m.start, times.timeZone, localeTag)} – {formatTime(m.end, times.timeZone, localeTag)}
                 </Text>
@@ -363,14 +373,23 @@ export default function Home() {
           ) : (
             <View className="gap-3">
               {familyMembersExceptMe.map((m) => (
-                <FamilyMemberRow
+                <Pressable
                   key={m.user_id}
-                  name={m.full_name ?? t('memberRole')}
-                  progressLabel={`${n(m.percent)}%`}
-                  dotsCompleted={Math.round((m.percent / 100) * 5)}
-                  avatarUri={m.avatar_url ?? undefined}
-                  todayLabel={t('todayLabel')}
-                />
+                  onPress={() =>
+                    router.push({
+                      pathname: '/family/member-calendar',
+                      params: { userId: m.user_id, name: m.full_name ?? t('memberRole') },
+                    })
+                  }
+                >
+                  <FamilyMemberRow
+                    name={m.full_name ?? t('memberRole')}
+                    progressLabel={`${n(m.percent)}%`}
+                    dotsCompleted={Math.round((m.percent / 100) * 5)}
+                    avatarUri={m.avatar_url ?? undefined}
+                    todayLabel={t('todayLabel')}
+                  />
+                </Pressable>
               ))}
               {familyMembersExceptMe.length === 0 ? (
                 <Text className="text-[13px] text-on-surface-variant">{t('noOtherMembers')}</Text>

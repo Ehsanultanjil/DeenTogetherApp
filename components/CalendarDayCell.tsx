@@ -68,8 +68,9 @@ export function CalendarDayCell({
   let textStyle: { color: string } | undefined;
 
   if (isToday) {
-    circleClassName = 'bg-primary';
-    textStyle = { color: '#ffffff' };
+    // A ring, not a fill — today isn't over yet, so it shouldn't visually
+    // claim a status color (green/etc) prematurely.
+    circleClassName = 'border-2 border-primary';
   } else if (dotColor) {
     circleStyle = { backgroundColor: dotColor };
     textStyle = { color: dotTextColor };
@@ -92,7 +93,7 @@ export function CalendarDayCell({
             }`}
             style={[circleStyle, isPremium ? { borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)' } : undefined]}
           >
-            <Text className={`font-bold text-[14px] ${!isToday && !dotColor ? 'text-primary' : ''}`} style={textStyle}>
+            <Text className={`font-bold text-[14px] ${!dotColor ? 'text-primary' : ''}`} style={textStyle}>
               {day}
             </Text>
           </View>
