@@ -97,7 +97,7 @@ export default function CalendarScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <TopAppBar title={t('tabCalendar')} showBack />
+      <TopAppBar title={t('tabCalendar')} />
       <ScrollView className="flex-1 px-container-margin" contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 12 }}>
         <View className="flex-row items-center justify-between mb-4">
           <Pressable onPress={goPrev} hitSlop={8}>

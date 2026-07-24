@@ -1,7 +1,6 @@
 import '../global.css';
-import '../lib/notifications/backgroundTask';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Stack, useRouter, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import * as SplashScreen from 'expo-splash-screen';
@@ -32,6 +31,7 @@ import { useLocaleStore } from '../store/useLocaleStore';
 import { useThemeStore } from '../store/useThemeStore';
 import { useLocationPreferenceStore } from '../store/useLocationPreferenceStore';
 import { useLocationStore } from '../store/useLocationStore';
+import { useSyncQueueStore } from '../store/useSyncQueueStore';
 import { useOnboardingStatus } from '../lib/hooks/useProfile';
 
 SplashScreen.preventAutoHideAsync();
@@ -63,14 +63,14 @@ onlineManager.setEventListener((setOnline) => {
 });
 
 // Single source of truth for auth-based routing. Having every layout
-// ((auth), (tabs), onboarding, and the splash screen at "/") each decide
+// ((tabs), onboarding, and the login screen at "/") each decide
 // independently whether to redirect based on session was fragile — if any
 // two of them ever briefly disagreed during a fast transition (e.g. right
 // after sign-out), they could ping-pong forever (reproduced: white/gray
 // screen that never settled on logout). Centralizing it here, keyed off
 // the current route segments, is the pattern expo-router's own docs use
 // for exactly this reason.
-function RootNavigation() {
+function RootNavigation({ onReady }: { onReady: () => void }) {
   const router = useRouter();
   // useSegments() returns a new array every render even when its contents
   // are unchanged — depending on it directly in the effect below re-fires
@@ -81,29 +81,53 @@ function RootNavigation() {
   const group = useSegments()[0] as string | undefined;
   const session = useAuthStore((s) => s.session);
   const { data: onboardingCompleted, isLoading: onboardingLoading } = useOnboardingStatus();
+  const reportedReady = useRef(false);
 
   useEffect(() => {
+    // Every cold start mounts the Stack at "/" (index.tsx) first, no matter
+    // the session — the redirect below only fires a beat later, once this
+    // effect runs. That gap used to be visible as a flash of the login
+    // screen before landing on the dashboard. RootLayout keeps the native
+    // splash up until `onReady` fires, so nothing renders on screen until
+    // we're already settled on the correct group.
+    const reportReadyOnce = () => {
+      if (!reportedReady.current) {
+        reportedReady.current = true;
+        onReady();
+      }
+    };
+
     const inTabs = group === '(tabs)';
     const inOnboarding = group === 'onboarding';
 
     if (!session) {
-      if (inTabs || inOnboarding) router.replace('/');
+      if (inTabs || inOnboarding) {
+        router.replace('/');
+        return;
+      }
+      reportReadyOnce();
       return;
     }
 
     if (onboardingLoading) return;
 
     if (onboardingCompleted === false) {
-      if (!inOnboarding) router.replace('/onboarding/name');
+      if (!inOnboarding) {
+        router.replace('/onboarding/name');
+        return;
+      }
+      reportReadyOnce();
       return;
     }
 
-    // Signed in and onboarded — the splash/auth screens are only useful
-    // while logged out, so leave them for "/(tabs)".
-    if (group === undefined || group === '(auth)') {
+    // Signed in and onboarded — the login screen ("/", no group) is only
+    // useful while logged out.
+    if (group === undefined) {
       router.replace('/(tabs)');
+      return;
     }
-  }, [session, onboardingCompleted, onboardingLoading, group, router]);
+    reportReadyOnce();
+  }, [session, onboardingCompleted, onboardingLoading, group, router, onReady]);
 
   return <Stack screenOptions={{ headerShown: false }} />;
 }
@@ -132,6 +156,15 @@ export default function RootLayout() {
   const locationPrefHydrated = useLocationPreferenceStore((s) => s.hydrated);
   const locationHydrated = useLocationStore((s) => s.hydrated);
   const [queryCacheRestored, setQueryCacheRestored] = useState(false);
+  const [navReady, setNavReady] = useState(false);
+
+  useEffect(() => {
+    // Same escape hatch as the other readiness gates below — if
+    // RootNavigation's effect never settles for some unforeseen reason,
+    // the splash must not stay up forever.
+    const timeout = setTimeout(() => setNavReady(true), 4000);
+    return () => clearTimeout(timeout);
+  }, []);
 
   useEffect(() => {
     // Same class of bug as the getSession() race below — an AsyncStorage
@@ -167,40 +200,34 @@ export default function RootLayout() {
     useThemeStore.getState().hydrate();
     useLocationPreferenceStore.getState().hydrate();
     useLocationStore.getState().hydrate();
+    // The offline mutation queue is persisted to AsyncStorage but was never
+    // being read back — every restart silently started with an empty queue,
+    // so anything queued while offline was orphaned on disk and never
+    // synced (reproduced: an offline prayer toggle reverting once back
+    // online, because the write never actually reached the server).
+    useSyncQueueStore.getState().hydrate();
   }, []);
 
+  const readyToMount =
+    (fontsLoaded || fontError) &&
+    initialized &&
+    localeHydrated &&
+    themeHydrated &&
+    locationPrefHydrated &&
+    locationHydrated &&
+    queryCacheRestored;
+
   useEffect(() => {
-    if (
-      (fontsLoaded || fontError) &&
-      initialized &&
-      localeHydrated &&
-      themeHydrated &&
-      locationPrefHydrated &&
-      locationHydrated &&
-      queryCacheRestored
-    ) {
+    // Wait for navReady too — otherwise the splash lifts right as
+    // RootNavigation's first effect is still deciding whether to redirect,
+    // exposing a one-frame flash of whatever the Stack mounted at first
+    // (index.tsx) before landing on the real destination.
+    if (readyToMount && navReady) {
       SplashScreen.hide();
     }
-  }, [
-    fontsLoaded,
-    fontError,
-    initialized,
-    localeHydrated,
-    themeHydrated,
-    locationPrefHydrated,
-    locationHydrated,
-    queryCacheRestored,
-  ]);
+  }, [readyToMount, navReady]);
 
-  if (
-    (!fontsLoaded && !fontError) ||
-    !initialized ||
-    !localeHydrated ||
-    !themeHydrated ||
-    !locationPrefHydrated ||
-    !locationHydrated ||
-    !queryCacheRestored
-  ) {
+  if (!readyToMount) {
     return null;
   }
 
@@ -214,7 +241,7 @@ export default function RootLayout() {
           onError={() => setQueryCacheRestored(true)}
         >
           <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
-          <RootNavigation />
+          <RootNavigation onReady={() => setNavReady(true)} />
         </PersistQueryClientProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

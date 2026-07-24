@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Alert, Image, Pressable, ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { TextInput } from '../../components/TextInput';
 import { useRouter } from 'expo-router';
@@ -11,6 +11,7 @@ import { FamilyMemberRow } from '../../components/FamilyMemberRow';
 import { FamilyDeleteModal } from '../../components/FamilyDeleteModal';
 import { Icon } from '../../components/Icon';
 import { useColors } from '../../constants/theme';
+import { resolveAvatarSource } from '../../constants/avatarPresets';
 import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import {
   useMyMemberships,
@@ -21,15 +22,15 @@ import {
   useLeaveFamily,
   usePromoteMember,
   useDeleteFamily,
-  useSendReminder,
-  REMINDER_COOLDOWN_MS,
+  usePendingJoinRequests,
+  useRespondToJoinRequest,
 } from '../../lib/hooks/useFamily';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useT } from '../../lib/hooks/useT';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { usePrayerTimes } from '../../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../../lib/hooks/useClockTick';
-import { getCurrentWaqt, locationDateString } from '../../lib/prayerTimes';
+import { getCurrentWaqt } from '../../lib/prayerTimes';
 
 function CreateFamilyPrompt() {
   const router = useRouter();
@@ -83,17 +84,17 @@ export default function FamilyScreen() {
   const leaveFamily = useLeaveFamily();
   const promoteMember = usePromoteMember();
   const deleteFamily = useDeleteFamily();
-  const sendReminder = useSendReminder();
 
   const { settings } = usePrayerSettings();
   const { times } = usePrayerTimes(settings);
   const now = useClockTick(60_000);
   const currentWaqt = times ? getCurrentWaqt(times.windows, now).current.name : null;
-  const dateString = times ? locationDateString(times.timeZone, now) : null;
 
   const { data: members } = useFamilyTodayStatus(currentFamilyId ?? null, currentWaqt);
 
   const current = memberships?.find((m) => m.familyId === currentFamilyId);
+  const { data: pendingRequests } = usePendingJoinRequests(currentFamilyId ?? null, current?.role === 'admin');
+  const respondToJoinRequest = useRespondToJoinRequest();
 
   const copyCode = async () => {
     if (!current) return;
@@ -160,6 +161,47 @@ export default function FamilyScreen() {
           </View>
         ) : null}
 
+        {(pendingRequests ?? []).length > 0 ? (
+          <View className="mb-8 gap-2">
+            <Text className="text-[15px] font-bold text-on-surface">
+              {t('pendingRequestsTitle', { count: n(pendingRequests!.length) })}
+            </Text>
+            {pendingRequests!.map((req) => (
+              <View
+                key={req.id}
+                className="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-surface-variant/10 flex-row items-center justify-between"
+              >
+                <View className="flex-row items-center gap-3 flex-1">
+                  <View className="w-10 h-10 rounded-full overflow-hidden border-2 border-primary/10 bg-surface-container-high items-center justify-center">
+                    {resolveAvatarSource(req.avatarUrl ?? undefined) ? (
+                      <Image source={resolveAvatarSource(req.avatarUrl ?? undefined)} style={{ width: '100%', height: '100%' }} />
+                    ) : (
+                      <Icon name="person" size={18} color="#404943" />
+                    )}
+                  </View>
+                  <Text className="text-on-surface font-semibold flex-1" numberOfLines={1}>
+                    {req.fullName ?? t('memberRole')}
+                  </Text>
+                </View>
+                <View className="flex-row gap-2">
+                  <Pressable
+                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: false })}
+                    className="px-3 py-1.5 rounded-full bg-surface-container-high active:opacity-80"
+                  >
+                    <Text className="text-[12px] font-bold text-on-surface-variant">{t('declineRequest')}</Text>
+                  </Pressable>
+                  <Pressable
+                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: true })}
+                    className="px-3 py-1.5 rounded-full bg-primary-container active:opacity-80"
+                  >
+                    <Text className="text-[12px] font-bold text-on-primary-container">{t('approveRequest')}</Text>
+                  </Pressable>
+                </View>
+              </View>
+            ))}
+          </View>
+        ) : null}
+
         <View className="flex-row justify-between items-center mb-4">
           <Text className="text-[18px] font-bold text-on-surface">{t('membersCount', { count: n(members?.length ?? 0) })}</Text>
           <View className="bg-secondary-container px-3 py-1 rounded-full">
@@ -169,8 +211,6 @@ export default function FamilyScreen() {
         <View className="gap-3">
           {(members ?? []).map((m) => {
             const isSelf = m.user_id === session?.user.id;
-            const onCooldown =
-              !!m.last_reminded_at && Date.now() - new Date(m.last_reminded_at).getTime() < REMINDER_COOLDOWN_MS;
             return (
               <FamilyMemberRow
                 key={m.user_id}
@@ -182,14 +222,6 @@ export default function FamilyScreen() {
                 isAdmin={m.role === 'admin'}
                 size="lg"
                 todayLabel={t('todayLabel')}
-                showReminder={!isSelf && !!currentWaqt && !m.current_prayer_completed}
-                onCooldown={onCooldown}
-                remindLabel={t('remindButton')}
-                reminderSentLabel={t('reminderSent')}
-                onRemind={() => {
-                  if (!currentWaqt || !dateString) return;
-                  sendReminder.mutate({ recipientId: m.user_id, prayerName: currentWaqt, prayerDate: dateString });
-                }}
               />
             );
           })}

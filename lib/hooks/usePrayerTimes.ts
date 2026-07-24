@@ -24,8 +24,8 @@ export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: Ma
     return () => clearInterval(id);
   }, []);
 
-  const { times, ishaDateString } = useMemo(() => {
-    if (!coords) return { times: null, ishaDateString: null };
+  const { times, logDateString, displayWindows } = useMemo(() => {
+    if (!coords) return { times: null, logDateString: null, displayWindows: null };
     const now = new Date(tick);
     const params = {
       latitude: coords.latitude,
@@ -36,10 +36,13 @@ export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: Ma
     };
     const todayTimes = computePrayerTimes({ ...params, date: now });
 
-    // Between midnight and today's real Fajr, last night's Isha is still
-    // open — todayTimes' own "isha" entry is today's, not-yet-started one.
-    // Swap just that entry for yesterday's real Isha (→ today's real Fajr),
-    // and hand back which calendar date that completion belongs to.
+    // Between midnight and today's real Fajr, the whole prayer day still
+    // "belongs" to yesterday (Islamic day boundaries run Fajr-to-Fajr, not
+    // midnight-to-midnight) — all 5 waqts + Quran should stay editable
+    // against yesterday's date, not just Isha. `times.windows` itself keeps
+    // today's raw entries (only Isha's start/end patched) since that's what
+    // drives the app-wide "current waqt"/countdown display; `displayWindows`
+    // is the separate, all-5-carried-over set the Today screen renders.
     if (isBeforeTodayFajr(todayTimes, now)) {
       const yesterdayTimes = computePrayerTimes({ ...params, date: new Date(tick - DAY_MS) });
       const patchedWindows = todayTimes.windows.map((w) =>
@@ -47,12 +50,13 @@ export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: Ma
       );
       return {
         times: { ...todayTimes, windows: patchedWindows },
-        ishaDateString: locationDateString(todayTimes.timeZone, new Date(tick - DAY_MS)),
+        logDateString: locationDateString(todayTimes.timeZone, new Date(tick - DAY_MS)),
+        displayWindows: yesterdayTimes.windows,
       };
     }
 
-    return { times: todayTimes, ishaDateString: null };
+    return { times: todayTimes, logDateString: null, displayWindows: todayTimes.windows };
   }, [coords?.latitude, coords?.longitude, tick, settings.calcMethod, settings.madhab, settings.safetyMarginMinutes]);
 
-  return { times, locationStatus: status, coords, ishaDateString };
+  return { times, locationStatus: status, coords, logDateString, displayWindows };
 }

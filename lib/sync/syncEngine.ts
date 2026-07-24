@@ -31,7 +31,7 @@ async function apply(action: QueuedAction): Promise<void> {
 }
 
 const INVALIDATE_KEYS: Record<QueuedAction['kind'], string[]> = {
-  prayerToggle: 'todayPrayers,ishaCarryover,streak,monthlyStats'.split(','),
+  prayerToggle: 'todayPrayers,streak,monthlyStats'.split(','),
   quranToggle: 'todayQuran,monthlyStats,monthlyDayStatus'.split(','),
   updatePrayerSettings: ['prayerSettings'],
   updateNotificationSettings: ['notificationSettings'],
@@ -44,6 +44,13 @@ const INVALIDATE_KEYS: Record<QueuedAction['kind'], string[]> = {
 // final value, so replaying one that (unbeknownst to us) already partly
 // landed before an app kill is always safe to just repeat.
 export async function runSync(queryClient: QueryClient) {
+  // Defense in depth against the queue-loss bug this class of code already
+  // caused once: never trust the in-memory queue is populated without
+  // confirming AsyncStorage has actually been read back into it first.
+  if (!useSyncQueueStore.getState().hydrated) {
+    await useSyncQueueStore.getState().hydrate();
+  }
+
   const { queue, dequeue, bumpAttempts } = useSyncQueueStore.getState();
   if (queue.length === 0) {
     useSyncStatusStore.getState().setStatus('synced');

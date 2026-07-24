@@ -6,6 +6,8 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProgressRing } from '../../components/ProgressRing';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
+import { SyncDot } from '../../components/SyncDot';
+import { PrayerNotificationHistoryModal } from '../../components/PrayerNotificationHistoryModal';
 import { Icon } from '../../components/Icon';
 import { LocationPicker } from '../../components/LocationPicker';
 import { useColors } from '../../constants/theme';
@@ -13,12 +15,12 @@ import { usePrayerTimes } from '../../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../../lib/hooks/useClockTick';
 import { useLocationName } from '../../lib/hooks/useLocationName';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
-import { useTodayPrayerLogs, useIshaCarryover } from '../../lib/hooks/usePrayerLogs';
+import { useTodayPrayerLogs } from '../../lib/hooks/usePrayerLogs';
 import { usePrayerNotifications } from '../../lib/hooks/usePrayerNotifications';
 import { useNotificationSettings } from '../../lib/hooks/useNotificationSettings';
 import { useSyncStatusStore } from '../../store/useSyncStatusStore';
 import { useStreak } from '../../lib/hooks/useStreak';
-import { useCurrentFamilyId, useFamilyTodayStatus, useSendReminder, REMINDER_COOLDOWN_MS } from '../../lib/hooks/useFamily';
+import { useCurrentFamilyId, useFamilyTodayStatus } from '../../lib/hooks/useFamily';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationPreferenceStore } from '../../store/useLocationPreferenceStore';
 import { BANGLADESH_DISTRICTS, nearestDistrict } from '../../lib/bangladeshDistricts';
@@ -58,9 +60,10 @@ export default function Home() {
   const insets = useSafeAreaInsets();
   const tabBarHeight = useTabBarHeight();
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
+  const [notificationHistoryOpen, setNotificationHistoryOpen] = useState(false);
   const locationPreference = useLocationPreferenceStore((s) => s.preference);
   const { settings } = usePrayerSettings();
-  const { times, locationStatus, coords, ishaDateString } = usePrayerTimes(settings);
+  const { times, locationStatus, coords, logDateString } = usePrayerTimes(settings);
   const gpsCoords = locationPreference.mode === 'gps' ? coords : null;
   const geocodedPlace = useLocationName(gpsCoords);
   const locationLabel =
@@ -85,8 +88,11 @@ export default function Home() {
   const now = useClockTick();
   const dateString = times ? locationDateString(times.timeZone, now) : null;
   const { completed } = useTodayPrayerLogs(dateString);
-  const ishaCarryover = useIshaCarryover(ishaDateString);
-  const effectiveCompleted = ishaDateString ? { ...completed, isha: ishaCarryover.completed } : completed;
+  // Between midnight and real Fajr, all 5 waqts still belong to yesterday's
+  // date (see usePrayerTimes.ts) — home's completion count/percentage should
+  // reflect that carried-over day, not today's not-yet-started prayers.
+  const { completed: carryoverCompleted } = useTodayPrayerLogs(logDateString);
+  const effectiveCompleted = logDateString ? carryoverCompleted : completed;
   const streak = useStreak();
 
   // Tomorrow's Maghrib — only needed once today's Iftar has already
@@ -110,18 +116,16 @@ export default function Home() {
   const { data: currentFamilyId } = useCurrentFamilyId();
   const { data: familyStatus } = useFamilyTodayStatus(currentFamilyId ?? null, currentWaqt);
   const familyMembersExceptMe = (familyStatus ?? []).filter((m) => m.user_id !== session?.user.id);
-  const sendReminder = useSendReminder();
 
   const completedToday = Object.values(effectiveCompleted).filter(Boolean).length;
   const totalPrayers = 5;
   const percentage = Math.round((completedToday / totalPrayers) * 100);
 
+  const hasMissedToday = times
+    ? times.windows.some((w) => w.start <= now && now >= w.end && !completed[w.name])
+    : false;
+
   const syncStatus = useSyncStatusStore((s) => s.status);
-  const SYNC_STATUS_COLOR: Record<typeof syncStatus, string> = {
-    synced: '#22c55e',
-    syncing: '#f59e0b',
-    offline: Colors.outlineVariant,
-  };
   const SYNC_STATUS_LABEL: Record<typeof syncStatus, string> = {
     synced: t('syncedLabel'),
     syncing: t('syncingLabel'),
@@ -138,9 +142,15 @@ export default function Home() {
         <Text className="text-[16px] font-bold text-on-surface">{locationLabel}</Text>
         <Icon name="expand_more" color={Colors.onSurfaceVariant} size={18} />
       </Pressable>
-      <Pressable className="p-2 rounded-full active:opacity-70 relative" hitSlop={8}>
+      <Pressable
+        onPress={() => setNotificationHistoryOpen(true)}
+        className="p-2 rounded-full active:opacity-70 relative"
+        hitSlop={8}
+      >
         <Icon name="notifications" color={Colors.primary} />
-        <View className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface" />
+        {hasMissedToday ? (
+          <View className="absolute top-2 right-2 w-2 h-2 bg-error rounded-full border-2 border-surface" />
+        ) : null}
       </Pressable>
     </View>
   );
@@ -161,6 +171,13 @@ export default function Home() {
           <Text className="text-[13px] text-on-surface-variant mt-1 text-center">{t('locationExplainer')}</Text>
         </View>
         <LocationPicker visible={locationPickerOpen} onClose={() => setLocationPickerOpen(false)} />
+        <PrayerNotificationHistoryModal
+          visible={notificationHistoryOpen}
+          onClose={() => setNotificationHistoryOpen(false)}
+          times={times}
+          completed={completed}
+          now={now}
+        />
       </View>
     );
   }
@@ -188,10 +205,6 @@ export default function Home() {
   return (
     <View className="flex-1 bg-surface">
       {locationHeader}
-      <View className="w-full flex-row items-center justify-center gap-1.5 pb-1.5 bg-surface">
-        <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: SYNC_STATUS_COLOR[syncStatus] }} />
-        <Text className="text-[10px] text-on-surface-variant">{SYNC_STATUS_LABEL[syncStatus]}</Text>
-      </View>
       <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: tabBarHeight + 32, paddingTop: 8 }}>
         <View className="bg-surface-container-lowest rounded-xl border border-surface-container-low px-4 py-2.5 mb-4">
           <Text className="text-[12px] text-on-surface-variant text-center">
@@ -204,10 +217,8 @@ export default function Home() {
         <View className="bg-primary-container rounded-xl p-4 shadow-sm mb-4 flex-row items-center gap-4">
           {activeMakruh ? (
             <ProgressRing size={90} strokeWidth={9} progress={makruhProgress} color="#ffb4ab" trackColor="#93000a">
-              <Text className="text-on-primary-container font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
-              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">
-                {formatCountdown(makruhRemainingMs, n)}
-              </Text>
+              <Text className="text-error font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
+              <Text className="text-error text-[12px] font-bold mt-0.5">{formatCountdown(makruhRemainingMs, n)}</Text>
             </ProgressRing>
           ) : (
             <ProgressRing size={90} strokeWidth={9} progress={currentProgress} color="#a8e7c5" trackColor="#0e5138">
@@ -257,7 +268,10 @@ export default function Home() {
           className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-surface-variant/20 active:opacity-90 mb-4"
         >
           <View className="flex-row items-center justify-between mb-4">
-            <Text className="text-[18px] font-bold text-on-surface">{t('todaysProgress')}</Text>
+            <View className="flex-row items-center gap-2">
+              <SyncDot status={syncStatus} label={SYNC_STATUS_LABEL[syncStatus]} />
+              <Text className="text-[18px] font-bold text-on-surface">{t('todaysProgress')}</Text>
+            </View>
             <View className="flex-row items-center gap-2">
               <View className="bg-primary-fixed px-3 py-1 rounded-full">
                 <Text className="text-on-primary-fixed text-[12px]">{t('dailyStreak', { count: n(streak) })}</Text>
@@ -348,28 +362,16 @@ export default function Home() {
             </Pressable>
           ) : (
             <View className="gap-3">
-              {familyMembersExceptMe.map((m) => {
-                const onCooldown =
-                  !!m.last_reminded_at && Date.now() - new Date(m.last_reminded_at).getTime() < REMINDER_COOLDOWN_MS;
-                return (
-                  <FamilyMemberRow
-                    key={m.user_id}
-                    name={m.full_name ?? t('memberRole')}
-                    progressLabel={`${n(m.percent)}%`}
-                    dotsCompleted={Math.round((m.percent / 100) * 5)}
-                    avatarUri={m.avatar_url ?? undefined}
-                    todayLabel={t('todayLabel')}
-                    showReminder={!!currentWaqt && !m.current_prayer_completed}
-                    onCooldown={onCooldown}
-                    remindLabel={t('remindButton')}
-                    reminderSentLabel={t('reminderSent')}
-                    onRemind={() => {
-                      if (!currentWaqt || !dateString) return;
-                      sendReminder.mutate({ recipientId: m.user_id, prayerName: currentWaqt, prayerDate: dateString });
-                    }}
-                  />
-                );
-              })}
+              {familyMembersExceptMe.map((m) => (
+                <FamilyMemberRow
+                  key={m.user_id}
+                  name={m.full_name ?? t('memberRole')}
+                  progressLabel={`${n(m.percent)}%`}
+                  dotsCompleted={Math.round((m.percent / 100) * 5)}
+                  avatarUri={m.avatar_url ?? undefined}
+                  todayLabel={t('todayLabel')}
+                />
+              ))}
               {familyMembersExceptMe.length === 0 ? (
                 <Text className="text-[13px] text-on-surface-variant">{t('noOtherMembers')}</Text>
               ) : null}
@@ -386,6 +388,13 @@ export default function Home() {
         <Icon name="add" color="#ffffff" />
       </Pressable>
       <LocationPicker visible={locationPickerOpen} onClose={() => setLocationPickerOpen(false)} />
+      <PrayerNotificationHistoryModal
+        visible={notificationHistoryOpen}
+        onClose={() => setNotificationHistoryOpen(false)}
+        times={times}
+        completed={completed}
+        now={now}
+      />
     </View>
   );
 }

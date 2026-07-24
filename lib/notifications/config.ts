@@ -1,12 +1,23 @@
+import * as Notifications from 'expo-notifications';
 import type { WaqtName } from '../prayerTimes';
 import type { Locale } from '../../store/useLocaleStore';
 
-// Android only — iOS has no equivalent of an always-updating, action-button
-// notification without Live Activities (a separate native project).
+// Without this, expo-notifications' default behavior is to show NOTHING
+// while the app is in the foreground (its own docs: "the default behavior
+// when the handler is not set... is not to show the notification") — this
+// is why prayer-time notifications never appeared as a popup while the app
+// was open. Module-scope so it runs once, as early as this file is first
+// imported (usePrayerNotifications, on Home mount).
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
+
 export const PRAYER_CHANNEL_ID = 'prayer-updates';
-export const PRAYER_CATEGORY_ID = 'PRAYER_ACTIONS';
-export const MARK_DONE_ACTION_ID = 'MARK_DONE';
-export const BACKGROUND_NOTIFICATION_TASK = 'prayer-notification-response';
 
 export const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
 
@@ -47,5 +58,5 @@ export function startedLine(waqt: WaqtName, locale: Locale) {
 }
 
 export function missedLine(waqt: WaqtName, locale: Locale) {
-  return `❌ ${waqtLabel(waqt, locale)} ${MISSED_SUFFIX[locale]}`;
+  return `${waqtLabel(waqt, locale)} ${MISSED_SUFFIX[locale]}`;
 }

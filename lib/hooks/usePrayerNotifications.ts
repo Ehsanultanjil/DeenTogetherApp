@@ -1,38 +1,32 @@
 import { useEffect, useRef } from 'react';
 import { AppState } from 'react-native';
 import * as Notifications from 'expo-notifications';
-import {
-  BACKGROUND_NOTIFICATION_TASK,
-  MARK_DONE_ACTION_ID,
-  PRAYER_CATEGORY_ID,
-  PRAYER_CHANNEL_ID,
-  WAQT_ORDER,
-  missedLine,
-  notificationIdFor,
-  startedLine,
-} from '../notifications/config';
-import '../notifications/backgroundTask';
+import { PRAYER_CHANNEL_ID, WAQT_ORDER, missedLine, notificationIdFor, startedLine } from '../notifications/config';
 import type { CompletionMap } from './usePrayerLogs';
 import { getCurrentWaqt, type DayPrayerTimes, type WaqtName } from '../prayerTimes';
 import type { Locale } from '../../store/useLocaleStore';
 
-let setupDone = false;
+let setupPromise: Promise<void> | null = null;
 
-async function ensureSetup() {
-  if (setupDone) return;
-  setupDone = true;
-
-  await Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
-    name: 'Prayer time updates',
-    importance: Notifications.AndroidImportance.HIGH,
-    lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
-  });
-
-  await Notifications.setNotificationCategoryAsync(PRAYER_CATEGORY_ID, [
-    { identifier: MARK_DONE_ACTION_ID, buttonTitle: 'Mark Done', options: { opensAppToForeground: false } },
-  ]);
-
-  await Notifications.registerTaskAsync(BACKGROUND_NOTIFICATION_TASK).catch(() => {});
+// Cache the in-flight/succeeded promise itself, not a boolean flag set
+// before the await — flipping a "done" flag before the channel actually
+// gets created meant a transient failure here would permanently skip
+// creating the Android notification channel for the rest of the process,
+// silently breaking every future scheduled notification tied to it.
+function ensureSetup() {
+  if (!setupPromise) {
+    setupPromise = Notifications.setNotificationChannelAsync(PRAYER_CHANNEL_ID, {
+      name: 'Prayer time updates',
+      importance: Notifications.AndroidImportance.HIGH,
+      lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
+    })
+      .then(() => undefined)
+      .catch((err) => {
+        setupPromise = null; // allow retry on next call
+        throw err;
+      });
+  }
+  return setupPromise;
 }
 
 export async function requestPrayerNotificationPermission() {
@@ -46,9 +40,8 @@ export async function requestPrayerNotificationPermission() {
 // Keeps the tray to (at most) the current waqt's notification, and
 // (re)schedules every not-yet-fired waqt for today with fresh "previous
 // prayer missed" context. Local scheduled notifications can't wake JS in
-// the background on delivery (only on an action press — see
-// backgroundTask.ts), so this is best-effort: it runs whenever the app is
-// foregrounded / this data changes, not continuously.
+// the background on delivery, so this is best-effort: it runs whenever the
+// app is foregrounded / this data changes, not continuously.
 async function cancelAllWaqtNotifications() {
   for (const waqt of WAQT_ORDER) {
     await Notifications.cancelScheduledNotificationAsync(notificationIdFor(waqt)).catch(() => {});
@@ -103,9 +96,6 @@ async function syncNotifications(
         title: 'DeenTogether',
         body: bodyLines.join('\n'),
         data: { waqt: w.name, dateString, locale },
-        sticky: true,
-        autoDismiss: false,
-        categoryIdentifier: PRAYER_CATEGORY_ID,
       },
       trigger: { type: Notifications.SchedulableTriggerInputTypes.DATE, date: w.start, channelId: PRAYER_CHANNEL_ID },
     });

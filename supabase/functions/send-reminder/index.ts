@@ -54,13 +54,23 @@ Deno.serve(async (req) => {
       channelId: 'prayer-updates',
     }));
 
-    await fetch('https://exp.host/--/api/v2/push/send', {
+    const pushRes = await fetch('https://exp.host/--/api/v2/push/send', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
       body: JSON.stringify(messages),
     });
+    const pushJson = await pushRes.json().catch(() => null);
+    const tickets: Array<{ status: string; message?: string; details?: { error?: string } }> = pushJson?.data ?? [];
+    const sent = tickets.filter((t) => t.status === 'ok').length;
 
-    return new Response(JSON.stringify({ sent: messages.length }), { headers: { 'Content-Type': 'application/json' } });
+    // Logged so delivery failures (e.g. bad/expired token, or the project's
+    // FCM push credentials not being configured) are visible in the
+    // function's dashboard logs instead of vanishing silently.
+    if (sent < messages.length) {
+      console.error('send-reminder: some tickets failed', JSON.stringify(tickets));
+    }
+
+    return new Response(JSON.stringify({ sent, total: messages.length }), { headers: { 'Content-Type': 'application/json' } });
   } catch (error) {
     return new Response(`Internal error: ${error instanceof Error ? error.message : String(error)}`, { status: 500 });
   }

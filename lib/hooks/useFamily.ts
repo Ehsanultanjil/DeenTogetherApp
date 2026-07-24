@@ -3,11 +3,6 @@ import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import type { WaqtName } from '../prayerTimes';
 
-// Mirrors send_prayer_reminder's server-side cooldown window — used
-// client-side only to render the disabled "Reminder Sent" state; the RPC
-// is what actually enforces it.
-export const REMINDER_COOLDOWN_MS = 30 * 60 * 1000;
-
 export type Membership = {
   familyId: string;
   familyName: string;
@@ -86,40 +81,6 @@ export function useFamilyTodayStatus(familyId: string | null, currentPrayer: Waq
   });
 }
 
-export function useSendReminder() {
-  const queryClient = useQueryClient();
-  return useMutation({
-    mutationFn: async (vars: { recipientId: string; prayerName: WaqtName; prayerDate: string }) => {
-      const { error: rpcError } = await supabase.rpc('send_prayer_reminder', {
-        p_recipient_id: vars.recipientId,
-        p_prayer_name: vars.prayerName,
-        p_prayer_date: vars.prayerDate,
-      });
-      if (rpcError) throw rpcError;
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      // Delivery is best-effort — the reminder is already recorded (and
-      // cooldown/spam-proofed) by the RPC above regardless of whether the
-      // push actually lands, so a function-invoke failure here isn't fatal.
-      await supabase.functions
-        .invoke('send-reminder', {
-          body: {
-            recipientId: vars.recipientId,
-            prayerName: vars.prayerName,
-            senderName: user?.user_metadata?.full_name ?? 'A family member',
-          },
-        })
-        .catch(() => {});
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['familyTodayStatus'] });
-    },
-  });
-}
-
 function useInvalidateFamilyQueries() {
   const queryClient = useQueryClient();
   const userId = useUserId();
@@ -151,6 +112,50 @@ export function useJoinFamily() {
       return data;
     },
     onSuccess: invalidate,
+  });
+}
+
+export type PendingJoinRequest = {
+  id: string;
+  userId: string;
+  fullName: string | null;
+  avatarUrl: string | null;
+  createdAt: string;
+};
+
+export function usePendingJoinRequests(familyId: string | null, isAdmin: boolean) {
+  return useQuery({
+    queryKey: ['pendingJoinRequests', familyId],
+    enabled: !!familyId && isAdmin,
+    queryFn: async (): Promise<PendingJoinRequest[]> => {
+      const { data, error } = await supabase.rpc('get_pending_join_requests', { p_family_id: familyId! });
+      if (error) throw error;
+      return (data ?? []).map((row) => ({
+        id: row.id,
+        userId: row.user_id,
+        fullName: row.full_name,
+        avatarUrl: row.avatar_url,
+        createdAt: row.created_at,
+      }));
+    },
+  });
+}
+
+export function useRespondToJoinRequest() {
+  const invalidate = useInvalidateFamilyQueries();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (vars: { requestId: string; approve: boolean }) => {
+      const { error } = await supabase.rpc('respond_to_join_request', {
+        p_request_id: vars.requestId,
+        p_approve: vars.approve,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      invalidate();
+      queryClient.invalidateQueries({ queryKey: ['pendingJoinRequests'] });
+    },
   });
 }
 

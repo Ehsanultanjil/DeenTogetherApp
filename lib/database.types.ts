@@ -339,6 +339,17 @@ export type Database = {
         Returns: undefined
       }
       get_current_streak: { Args: { p_user_id?: string }; Returns: number }
+      get_my_reminders_today: {
+        Args: Record<PropertyKey, never>
+        Returns: {
+          id: string
+          sender_id: string
+          sender_name: string | null
+          sender_avatar_url: string | null
+          prayer_name: string
+          created_at: string
+        }[]
+      }
       get_family_today_status: {
         Args: { p_family_id: string; p_current_prayer?: string }
         Returns: {
@@ -380,18 +391,33 @@ export type Database = {
       join_family_by_code: {
         Args: { p_code: string }
         Returns: {
-          family_id: string
           id: string
-          joined_at: string
-          role: string
+          family_id: string
           user_id: string
+          status: string
+          created_at: string
+          resolved_at: string | null
         }
         SetofOptions: {
           from: "*"
-          to: "family_members"
+          to: "family_join_requests"
           isOneToOne: true
           isSetofReturn: false
         }
+      }
+      get_pending_join_requests: {
+        Args: { p_family_id: string }
+        Returns: {
+          id: string
+          user_id: string
+          full_name: string | null
+          avatar_url: string | null
+          created_at: string
+        }[]
+      }
+      respond_to_join_request: {
+        Args: { p_request_id: string; p_approve: boolean }
+        Returns: undefined
       }
       leave_family: { Args: { p_family_id: string }; Returns: undefined }
       promote_member: { Args: { p_family_id: string; p_new_admin_id: string }; Returns: undefined }

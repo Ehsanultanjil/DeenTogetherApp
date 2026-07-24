@@ -1,4 +1,4 @@
-import { Image, Pressable, View } from 'react-native';
+import { Image, View } from 'react-native';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { useColors } from '../constants/theme';
@@ -17,13 +17,6 @@ type Props = {
   // this row is just being used to pick a member (e.g. an admin-transfer
   // list), not to show their prayer status.
   hideStats?: boolean;
-  // Remind — only rendered when the current waqt is known, hasn't been
-  // completed by this member yet, and this isn't the viewer's own row.
-  showReminder?: boolean;
-  onCooldown?: boolean;
-  onRemind?: () => void;
-  remindLabel?: string;
-  reminderSentLabel?: string;
 };
 
 export function FamilyMemberRow({
@@ -36,11 +29,6 @@ export function FamilyMemberRow({
   size = 'sm',
   todayLabel = 'Today',
   hideStats = false,
-  showReminder = false,
-  onCooldown = false,
-  onRemind,
-  remindLabel = '🤲 Remind',
-  reminderSentLabel = '✓ Reminder Sent',
 }: Props) {
   const avatarSize = size === 'lg' ? 56 : 48;
   const Colors = useColors();
@@ -87,20 +75,6 @@ export function FamilyMemberRow({
           </View>
         )}
       </View>
-
-      {showReminder ? (
-        <Pressable
-          onPress={onCooldown ? undefined : onRemind}
-          disabled={onCooldown}
-          className={`mt-3 self-start px-3 py-1.5 rounded-full ${
-            onCooldown ? 'bg-surface-container-high' : 'bg-primary-container active:opacity-80'
-          }`}
-        >
-          <Text className={`text-[12px] font-bold ${onCooldown ? 'text-on-surface-variant' : 'text-on-primary-container'}`}>
-            {onCooldown ? reminderSentLabel : remindLabel}
-          </Text>
-        </Pressable>
-      ) : null}
     </View>
   );
 }

@@ -9,7 +9,7 @@ import { useColors } from '../constants/theme';
 import { usePrayerTimes } from '../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../lib/hooks/useClockTick';
 import { usePrayerSettings } from '../lib/hooks/usePrayerSettings';
-import { useTodayPrayerLogs, useIshaCarryover } from '../lib/hooks/usePrayerLogs';
+import { useTodayPrayerLogs } from '../lib/hooks/usePrayerLogs';
 import { useTodayQuranLog } from '../lib/hooks/useQuranLog';
 import { useT } from '../lib/hooks/useT';
 import { formatTime, locationDateString, type WaqtName } from '../lib/prayerTimes';
@@ -36,12 +36,14 @@ export default function TodayPrayers() {
   const { t, n, localeTag } = useT();
   const Colors = useColors();
   const { settings } = usePrayerSettings();
-  const { times, locationStatus, ishaDateString } = usePrayerTimes(settings);
+  const { times, locationStatus, logDateString, displayWindows } = usePrayerTimes(settings);
   const now = useClockTick(60_000);
   const dateString = times ? locationDateString(times.timeZone, now) : null;
-  const { completed, toggle } = useTodayPrayerLogs(dateString);
-  const ishaCarryover = useIshaCarryover(ishaDateString);
-  const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(dateString);
+  // Between midnight and real Fajr, the whole day (all 5 waqts + Quran)
+  // still belongs to yesterday's date — see usePrayerTimes.ts.
+  const effectiveDateString = logDateString ?? dateString;
+  const { completed, toggle } = useTodayPrayerLogs(effectiveDateString);
+  const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
 
   const completedCount = Object.values(completed).filter(Boolean).length;
   const percentage = Math.round((completedCount / 5) * 100);
@@ -49,7 +51,7 @@ export default function TodayPrayers() {
   if (!times) {
     return (
       <View className="flex-1 bg-surface">
-        <TopAppBar title={t('todayTitle')} showBack />
+        <TopAppBar title={t('todayTitle')} />
         <View className="flex-1 items-center justify-center px-gutter">
           <Icon name="info" size={32} color={Colors.onSurfaceVariant} />
           <Text className="text-[14px] text-on-surface-variant mt-3 text-center">
@@ -64,7 +66,6 @@ export default function TodayPrayers() {
     <View className="flex-1 bg-surface">
       <TopAppBar
         title={t('todayTitle')}
-        showBack
         dateText={now.toLocaleDateString(localeTag, {
           day: 'numeric',
           month: 'long',
@@ -88,9 +89,8 @@ export default function TodayPrayers() {
         </View>
 
         <View className="gap-3">
-          {times.windows.map((w) => {
-            const isCarryoverIsha = w.name === 'isha' && !!ishaDateString;
-            const isDone = isCarryoverIsha ? ishaCarryover.completed : completed[w.name];
+          {(displayWindows ?? times.windows).map((w) => {
+            const isDone = completed[w.name];
             return (
               <PrayerCard
                 key={w.name}
@@ -98,7 +98,7 @@ export default function TodayPrayers() {
                 timeRange={`${formatTime(w.start, times.timeZone, localeTag)} – ${formatTime(w.end, times.timeZone, localeTag)}`}
                 completed={isDone}
                 icon={WAQT_ICON[w.name]}
-                onToggle={() => (isCarryoverIsha ? ishaCarryover.toggle(!isDone) : toggle(w.name, !isDone))}
+                onToggle={() => toggle(w.name, !isDone)}
                 disabled={now < w.start}
               />
             );
