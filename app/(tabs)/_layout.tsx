@@ -1,5 +1,4 @@
 import { useEffect } from 'react';
-import { View } from 'react-native';
 import { Tabs } from 'expo-router';
 import { AnimatedTabBar } from '../../components/AnimatedTabBar';
 import { useAuthStore } from '../../store/useAuthStore';
@@ -10,14 +9,13 @@ import { requestPrayerNotificationPermission } from '../../lib/hooks/usePrayerNo
 import { usePushToken } from '../../lib/hooks/usePushToken';
 import { useSyncOnResume } from '../../lib/hooks/useSyncOnResume';
 
-// Which route to actively navigate to is decided centrally in
-// app/_layout.tsx's RootNavigation (see the comment there) — but that's a
-// separate concern from whether THIS screen is safe to render. Android's
-// back gesture can briefly land the navigator back on a route already in
-// its history (e.g. right after logout), so this still needs its own
-// passive refusal-to-render as a safety net — critically, just returning
-// null here, not issuing a competing navigation call of its own, which is
-// what caused the stuck/thrashing transitions before.
+// Auth routing is owned centrally by app/_layout.tsx's RootNavigation,
+// which redirects to login on logout from the ROOT navigator (it has to be
+// the root: "/" is ambiguous between app/index.tsx and app/(tabs)/index.tsx
+// since groups are invisible in the URL, and a redirect from inside this
+// group resolves "/" to the Home tab and loops forever). This guard stays
+// passive — render null while logged out, never navigate — so it can't
+// compete with or loop against the root redirect.
 export default function TabsLayout() {
   const session = useAuthStore((s) => s.session);
   const { t } = useT();
@@ -36,7 +34,7 @@ export default function TabsLayout() {
   }, [session]);
 
   if (!session) {
-    return <View className="flex-1 bg-surface" />;
+    return null;
   }
 
   return (

@@ -66,6 +66,11 @@ const en = {
     'Praying exactly at sunrise, sunset, and solar noon (istiwa) is completely prohibited (haram / makruh tahrimi).',
   ishaMakruhNote: 'Makrooh after: {{time}}',
   todaysProgress: "Today's Progress",
+  todaysPrayersTitle: "Today's Prayers",
+  completedFraction: '{{done}}/{{total}} Completed',
+  updatePrayerCta: 'Tap to Update',
+  hadithQuote: '"Between disbelief and faith is abandoning the Salat."',
+  hadithReference: '—Sahih Muslim,82',
   dailyStreak: 'Daily Streak: {{count}} 🔥',
   prayersDoneCount: '{{done}} of {{total}}',
   prayersDoneLabel: 'Prayers done',
@@ -92,6 +97,7 @@ const en = {
   locationNeededToday: 'Location access needed to show prayer times.',
   readQuranToday: 'Read Quran Today',
   quranAnytimeLabel: 'Anytime today',
+  quranLabel: 'Quran',
 
   // Calendar
   legend: 'Legend',
@@ -104,6 +110,7 @@ const en = {
   daysTracked: 'Days Tracked',
   monthProgress: 'Month Progress',
   quranDaysStat: 'Quran Days',
+  seeMonthStats: "See This Month's Stats",
 
   // Family
   myFamilyTitle: 'My Family',
@@ -299,6 +306,11 @@ const bn: typeof en = {
     'সূর্যোদয়, সূর্যাস্ত এবং দ্বিপ্রহরের (ইস্তিওয়া) সময় নামাজ পড়া সম্পূর্ণ নিষিদ্ধ (হারাম বা মাকরুহ তাহরিমি)।',
   ishaMakruhNote: '{{time}} এর পর মাকরুহ',
   todaysProgress: 'আজকের অগ্রগতি',
+  todaysPrayersTitle: 'আজকের নামাজ',
+  completedFraction: '{{done}}/{{total}} সম্পন্ন',
+  updatePrayerCta: 'আপডেট করতে ট্যাপ করুন',
+  hadithQuote: '"বান্দা এবং শিরক/কুফরের মধ্যে পার্থক্য হচ্ছে সালাত ছেড়ে দেয়া।"',
+  hadithReference: '— সহীহ মুসলিম, ৮২',
   dailyStreak: 'দৈনিক ধারাবাহিকতা: {{count}} 🔥',
   prayersDoneCount: '{{total}} এর মধ্যে {{done}}',
   prayersDoneLabel: 'নামাজ সম্পন্ন',
@@ -324,6 +336,7 @@ const bn: typeof en = {
   locationNeededToday: 'নামাজের সময় দেখাতে লোকেশন অ্যাক্সেস প্রয়োজন।',
   readQuranToday: 'আজ কুরআন পড়ুন',
   quranAnytimeLabel: 'আজকের যেকোনো সময়',
+  quranLabel: 'কুরআন',
 
   legend: 'সূচক',
   legendAll: 'সব নামাজ সম্পন্ন',
@@ -335,6 +348,7 @@ const bn: typeof en = {
   daysTracked: 'ট্র্যাক করা দিন',
   quranDaysStat: 'কুরআন পড়া দিন',
   monthProgress: 'মাসের অগ্রগতি',
+  seeMonthStats: 'এই মাসের পরিসংখ্যান দেখুন',
 
   myFamilyTitle: 'আমার পরিবার',
   startCircleTitle: 'আপনার পরিবার বৃত্ত শুরু করুন',

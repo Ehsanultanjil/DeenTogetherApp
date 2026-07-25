@@ -15,6 +15,7 @@ export const MATERIAL_SYMBOLS = {
   check: 'e668',
   chevron_left: 'e5cb',
   chevron_right: 'e5cc',
+  close: 'e5cd',
   content_copy: 'e14d',
   dark_mode: 'e51c',
   edit: 'e3c9',

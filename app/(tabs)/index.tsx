@@ -1,12 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Alert, Pressable, ScrollView, View } from 'react-native';
+import { Alert, ImageBackground, Pressable, ScrollView, View } from 'react-native';
 import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import { Text } from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ProgressRing } from '../../components/ProgressRing';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
-import { SyncDot } from '../../components/SyncDot';
 import { PrayerNotificationHistoryModal } from '../../components/PrayerNotificationHistoryModal';
 import { Icon } from '../../components/Icon';
 import { LocationPicker } from '../../components/LocationPicker';
@@ -16,10 +15,9 @@ import { useClockTick } from '../../lib/hooks/useClockTick';
 import { useLocationName } from '../../lib/hooks/useLocationName';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { useTodayPrayerLogs } from '../../lib/hooks/usePrayerLogs';
+import { useTodayQuranLog } from '../../lib/hooks/useQuranLog';
 import { usePrayerNotifications } from '../../lib/hooks/usePrayerNotifications';
 import { useNotificationSettings } from '../../lib/hooks/useNotificationSettings';
-import { useSyncStatusStore } from '../../store/useSyncStatusStore';
-import { useStreak } from '../../lib/hooks/useStreak';
 import { useCurrentFamilyId, useFamilyTodayStatus } from '../../lib/hooks/useFamily';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationPreferenceStore } from '../../store/useLocationPreferenceStore';
@@ -35,6 +33,7 @@ import {
   type WaqtName,
 } from '../../lib/prayerTimes';
 import type { MakruhKey } from '../../lib/prayerTimes';
+import type { MaterialSymbolName } from '../../constants/materialSymbols';
 
 const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
   fajr: 'waqtFajr',
@@ -42,6 +41,14 @@ const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMag
   asr: 'waqtAsr',
   maghrib: 'waqtMaghrib',
   isha: 'waqtIsha',
+};
+
+const WAQT_ICON: Record<WaqtName, MaterialSymbolName> = {
+  fajr: 'wb_twilight',
+  dhuhr: 'sunny',
+  asr: 'sunny',
+  maghrib: 'wb_sunny',
+  isha: 'bedtime',
 };
 
 const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
@@ -93,7 +100,8 @@ export default function Home() {
   // reflect that carried-over day, not today's not-yet-started prayers.
   const { completed: carryoverCompleted } = useTodayPrayerLogs(logDateString);
   const effectiveCompleted = logDateString ? carryoverCompleted : completed;
-  const streak = useStreak();
+  const effectiveDateString = logDateString ?? dateString;
+  const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
 
   // Tomorrow's Maghrib — only needed once today's Iftar has already
   // passed, but cheap enough to just always compute alongside today's.
@@ -119,18 +127,10 @@ export default function Home() {
 
   const completedToday = Object.values(effectiveCompleted).filter(Boolean).length;
   const totalPrayers = 5;
-  const percentage = Math.round((completedToday / totalPrayers) * 100);
 
   const hasMissedToday = times
     ? times.windows.some((w) => w.start <= now && now >= w.end && !completed[w.name])
     : false;
-
-  const syncStatus = useSyncStatusStore((s) => s.status);
-  const SYNC_STATUS_LABEL: Record<typeof syncStatus, string> = {
-    synced: t('syncedLabel'),
-    syncing: t('syncingLabel'),
-    offline: t('offlineLabel'),
-  };
 
   const locationHeader = (
     <View
@@ -206,7 +206,7 @@ export default function Home() {
     <View className="flex-1 bg-surface">
       {locationHeader}
       <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: tabBarHeight + 32, paddingTop: 8 }}>
-        <View className="bg-surface-container-lowest rounded-xl border border-surface-container-low px-4 py-2.5 mb-4">
+        <View className="bg-surface-container-lowest rounded-xl border border-surface-container-low px-4 py-2.5 mb-2">
           <Text className="text-[12px] text-on-surface-variant text-center">
             {now.toLocaleDateString(localeTag, { day: 'numeric', month: 'long', year: 'numeric', timeZone: times.timeZone })} ·
             {' '}{t('sunrise')} {formatTime(times.sunrise, times.timeZone, localeTag)} · {t('sunset')}{' '}
@@ -214,14 +214,39 @@ export default function Home() {
           </Text>
         </View>
 
-        <View className="bg-primary-container rounded-xl p-4 shadow-sm mb-4 flex-row items-center gap-4">
+        <ImageBackground
+          source={require('../../assets/backgrounds/prayer-times-bg.png')}
+          resizeMode="cover"
+          imageStyle={{
+            borderRadius: 12,
+            // Nudge the photo a little to the right within its frame. cover
+            // exactly fills the box with no slack to shift into, so the
+            // image is overscanned symmetrically first (wider than the box,
+            // centered) to create room on both sides, then translated —
+            // this way the shift can't expose a gap on either edge.
+            width: '116%',
+            left: '-6%',
+            transform: [{ translateX: 20 }],
+          }}
+          style={{
+            width: '100%',
+            height: 230,
+            borderRadius: 12,
+            marginBottom: 8,
+            padding: 16,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 16,
+            overflow: 'hidden',
+          }}
+        >
           {activeMakruh ? (
-            <ProgressRing size={90} strokeWidth={9} progress={makruhProgress} color="#ffb4ab" trackColor="#93000a">
+            <ProgressRing size={90} strokeWidth={9} progress={makruhProgress} color="#ff0000" trackColor="transparent">
               <Text className="text-error font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
               <Text className="text-error text-[12px] font-bold mt-0.5">{formatCountdown(makruhRemainingMs, n)}</Text>
             </ProgressRing>
           ) : (
-            <ProgressRing size={90} strokeWidth={9} progress={currentProgress} color="#a8e7c5" trackColor="#0e5138">
+            <ProgressRing size={90} strokeWidth={9} progress={currentProgress} color="#a8e7c5" trackColor="transparent">
               <Text className="text-on-primary-container font-bold text-[13px]">{t(WAQT_KEY[current.name])}</Text>
               <Text className="text-on-primary-container text-[10px] opacity-80">{t('left')}</Text>
               <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">
@@ -261,49 +286,169 @@ export default function Home() {
               );
             })}
           </View>
+        </ImageBackground>
+
+        <View className="mb-2">
+          <View className="bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-surface-variant/20">
+          <View className="flex-row items-center justify-between mb-3">
+            <Text className="text-[13px] font-bold text-on-surface">{t('todaysPrayersTitle')}</Text>
+            <Text className="text-[11px] font-bold text-primary">
+              {t('completedFraction', { done: n(completedToday), total: n(totalPrayers) })}
+            </Text>
+          </View>
+          <View className="flex-row items-start justify-between" style={{ position: 'relative' }}>
+            <View
+              className="bg-outline-variant"
+              style={{
+                position: 'absolute',
+                top: 17,
+                left: `${100 / WAQT_ORDER.length / 2}%`,
+                right: `${100 / WAQT_ORDER.length / 2}%`,
+                height: 1.5,
+                zIndex: -1,
+              }}
+            />
+            {WAQT_ORDER.map((waqt) => {
+              const isCurrentWaqt = waqt === currentWaqt;
+              const isDone = effectiveCompleted[waqt];
+              const waqtWindow = times.windows.find((w) => w.name === waqt);
+              const isMissed = !isDone && !isCurrentWaqt && !!waqtWindow && now >= waqtWindow.end;
+              const circleSize = isCurrentWaqt ? 36 : 28;
+              return (
+                <View key={waqt} className="items-center" style={{ width: `${100 / WAQT_ORDER.length}%` }}>
+                  <View style={{ height: 35, alignItems: 'center', justifyContent: 'center' }}>
+                    <View
+                      className={`items-center justify-center rounded-full ${
+                        isDone
+                          ? 'bg-primary-container'
+                          : isCurrentWaqt
+                            ? 'bg-surface-container border-2 border-primary'
+                            : !isMissed
+                              ? 'bg-surface-container border border-outline-variant'
+                              : ''
+                      }`}
+                      style={{
+                        width: circleSize,
+                        height: circleSize,
+                        ...(isMissed ? { backgroundColor: '#ba1a1a' } : null),
+                        ...(isCurrentWaqt
+                          ? {
+                              shadowColor: Colors.primary,
+                              shadowOpacity: 0.6,
+                              shadowRadius: 5,
+                              shadowOffset: { width: 0, height: 0 },
+                              elevation: 4,
+                            }
+                          : isDone
+                            ? {
+                                shadowColor: Colors.primary,
+                                shadowOpacity: 0.3,
+                                shadowRadius: 20,
+                                shadowOffset: { width: 0, height: 0 },
+                                elevation: 3,
+                              }
+                            : isMissed
+                              ? {
+                                  shadowColor: '#ba1a1a',
+                                  shadowOpacity: 0.3,
+                                  shadowRadius: 20,
+                                  shadowOffset: { width: 0, height: 0 },
+                                  elevation: 3,
+                                }
+                              : null),
+                      }}
+                    >
+                      {isDone ? (
+                        <Icon name="check" size={14} color="#ffffff" />
+                      ) : isMissed ? (
+                        <Icon name="close" size={14} color="#ffffff" />
+                      ) : (
+                        <Icon
+                          name={WAQT_ICON[waqt]}
+                          size={isCurrentWaqt ? 17 : 12}
+                          color={isCurrentWaqt ? '#f5b942' : Colors.onSurfaceVariant}
+                        />
+                      )}
+                    </View>
+                  </View>
+                  <Text
+                    className={`text-[9px] mt-1 text-center ${
+                      isCurrentWaqt ? 'font-bold text-on-surface' : 'text-on-surface-variant'
+                    }`}
+                  >
+                    {t(WAQT_KEY[waqt])}
+                  </Text>
+                  {isCurrentWaqt ? (
+                    <View
+                      style={{
+                        width: 0,
+                        height: 0,
+                        marginTop: 2,
+                        borderLeftWidth: 3,
+                        borderRightWidth: 3,
+                        borderBottomWidth: 4,
+                        borderLeftColor: 'transparent',
+                        borderRightColor: 'transparent',
+                        borderBottomColor: Colors.primary,
+                      }}
+                    />
+                  ) : null}
+                </View>
+              );
+            })}
+          </View>
+          <View className="flex-row gap-2 mt-3">
+            <Pressable
+              onPress={() => toggleQuran(!quranCompleted)}
+              className={`flex-1 rounded-full px-3 py-2 flex-row items-center justify-center gap-1.5 active:opacity-80 ${
+                quranCompleted ? 'bg-primary-container' : 'bg-surface-container border border-outline-variant'
+              }`}
+            >
+              <Icon name="menu_book" size={14} color={quranCompleted ? '#ffffff' : Colors.onSurfaceVariant} />
+              <Text className={`text-[10px] font-bold ${quranCompleted ? 'text-white' : 'text-on-surface-variant'}`}>
+                {t('quranLabel')}
+              </Text>
+              <Icon
+                name={quranCompleted ? 'check_circle' : 'radio_button_unchecked'}
+                filled={quranCompleted}
+                size={13}
+                color={quranCompleted ? '#ffffff' : Colors.outlineVariant}
+              />
+            </Pressable>
+            {currentWaqt ? (
+              <Pressable
+                onPress={() => router.push('/today')}
+                className="flex-1 bg-primary-fixed rounded-full px-2 py-2 flex-row items-center justify-center gap-1"
+              >
+                <Text className="text-[10px] font-bold text-on-primary-fixed" numberOfLines={1}>
+                  {t('updatePrayerCta')}
+                </Text>
+                <Icon name="chevron_right" size={13} color={Colors.onPrimaryFixed} />
+              </Pressable>
+            ) : null}
+          </View>
+          </View>
+          <View
+            className="bg-primary-container rounded-b-xl"
+            style={{
+              marginHorizontal: 8,
+              paddingHorizontal: 14,
+              paddingVertical: 6,
+              shadowColor: '#000',
+              shadowOpacity: 0.25,
+              shadowRadius: 4,
+              shadowOffset: { width: 0, height: 2 },
+              elevation: 2,
+            }}
+          >
+            <Text className="text-[9.5px] text-on-primary-container/100" style={{ lineHeight: 12 }} numberOfLines={1}>
+              <Text className="italic">{t('hadithQuote')}</Text>
+              <Text className="text-on-primary-container/80"> {t('hadithReference')}</Text>
+            </Text>
+          </View>
         </View>
 
-        <Pressable
-          onPress={() => router.push('/today')}
-          className="bg-surface-container-lowest rounded-xl p-6 shadow-sm border border-surface-variant/20 active:opacity-90 mb-4"
-        >
-          <View className="flex-row items-center justify-between mb-4">
-            <View className="flex-row items-center gap-2">
-              <SyncDot status={syncStatus} label={SYNC_STATUS_LABEL[syncStatus]} />
-              <Text className="text-[18px] font-bold text-on-surface">{t('todaysProgress')}</Text>
-            </View>
-            <View className="flex-row items-center gap-2">
-              <View className="bg-primary-fixed px-3 py-1 rounded-full">
-                <Text className="text-on-primary-fixed text-[12px]">{t('dailyStreak', { count: n(streak) })}</Text>
-              </View>
-              <Icon name="chevron_right" size={18} color={Colors.onSurfaceVariant} />
-            </View>
-          </View>
-          <View className="flex-row items-center gap-6">
-            <ProgressRing size={80} strokeWidth={9} progress={percentage}>
-              <Text className="text-[20px] font-bold text-primary">{n(percentage)}%</Text>
-            </ProgressRing>
-            <View className="gap-2">
-              <View className="flex-row items-center gap-2">
-                <Text className="text-[18px] font-bold text-primary">
-                  {t('prayersDoneCount', { done: n(completedToday), total: n(totalPrayers) })}
-                </Text>
-                <Text className="text-[14px] text-on-surface-variant">{t('prayersDoneLabel')}</Text>
-              </View>
-              <View className="flex-row gap-1">
-                {WAQT_ORDER.map((waqt) =>
-                  effectiveCompleted[waqt] ? (
-                    <Icon key={waqt} name="check_circle" filled size={16} color={Colors.primary} />
-                  ) : (
-                    <Icon key={waqt} name="radio_button_unchecked" size={16} color={Colors.outlineVariant} />
-                  ),
-                )}
-              </View>
-            </View>
-          </View>
-        </Pressable>
-
-        <View className="bg-surface-container-lowest rounded-xl border border-surface-container-low p-4 mb-4">
+        <View className="bg-surface-container-lowest rounded-xl border border-surface-container-low p-4 mb-2">
           <View className="flex-row items-center gap-2 mb-3">
             <Icon name="info" size={18} color={Colors.error} />
             <Text className="text-[14px] font-bold text-error">{t('dislikedTimes')}</Text>
@@ -331,7 +476,7 @@ export default function Home() {
           <Text className="text-[10px] text-on-surface-variant">{t('prohibitedTimesNote')}</Text>
         </View>
 
-        <View className="flex-row bg-surface-container-lowest rounded-xl border border-surface-container-low mb-4 overflow-hidden">
+        <View className="flex-row bg-surface-container-lowest rounded-xl border border-surface-container-low mb-2 overflow-hidden">
           <View className="flex-1 items-center py-3 border-r border-surface-container-low">
             <Text className="text-[15px] font-bold text-on-surface">
               {formatTime(sahriTime, times.timeZone, localeTag)}
@@ -356,7 +501,7 @@ export default function Home() {
           </View>
         </View>
 
-        <View className="mb-4">
+        <View className="mb-2">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-[18px] font-bold text-on-surface">{t('familyStatus')}</Text>
             <Pressable onPress={() => router.push('/(tabs)/family')}>

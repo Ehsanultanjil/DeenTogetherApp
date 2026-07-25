@@ -22,7 +22,7 @@ export function useMonthlyStats(year: number, month: number, targetUserId?: stri
   const userId = targetUserId ?? ownUserId;
   return useQuery({
     queryKey: ['monthlyStats', userId, year, month],
-    enabled: !!userId,
+    enabled: !!userId && Number.isFinite(year) && Number.isFinite(month),
     queryFn: async (): Promise<MonthlyStats> => {
       const { data, error } = await supabase.rpc('get_monthly_stats', {
         p_user_id: userId!,

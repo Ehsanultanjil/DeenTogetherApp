@@ -101,6 +101,16 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
     const inOnboarding = group === 'onboarding';
 
     if (!session) {
+      // Logged out from a protected group: redirect back to login. This
+      // MUST run here at the root, not from inside (tabs)/_layout: both
+      // app/index.tsx and app/(tabs)/index.tsx resolve to the URL "/"
+      // (route groups are invisible in the path), so a <Redirect href="/">
+      // rendered *inside* the tabs group resolves to the nearest match —
+      // (tabs)/index (Home) — never leaves the group, and re-fires forever
+      // (reproduced: 3000+ navigations, a hard redirect loop). Fired from
+      // the root navigator, "/" resolves to app/index.tsx (login) as
+      // intended. The layout guards stay passive (render null) so they
+      // don't compete.
       if (inTabs || inOnboarding) {
         router.replace('/');
         return;
@@ -129,7 +139,23 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
     reportReadyOnce();
   }, [session, onboardingCompleted, onboardingLoading, group, router, onReady]);
 
-  return <Stack screenOptions={{ headerShown: false }} />;
+  // app/index.tsx (login) and app/(tabs)/index.tsx (Home) BOTH resolve to
+  // the URL "/" because route groups are invisible in the path. That made
+  // "/" ambiguous: a logout redirect to "/" resolved to the Home tab
+  // instead of login (blank screen / redirect loop). Gating the two on
+  // session so only ONE exists at a time removes the ambiguity at its
+  // source — "/" is login when logged out, Home when logged in. All other
+  // routes are still auto-registered from the filesystem.
+  return (
+    <Stack screenOptions={{ headerShown: false }}>
+      <Stack.Protected guard={!session}>
+        <Stack.Screen name="index" />
+      </Stack.Protected>
+      <Stack.Protected guard={!!session}>
+        <Stack.Screen name="(tabs)" />
+      </Stack.Protected>
+    </Stack>
+  );
 }
 
 export default function RootLayout() {

@@ -1,13 +1,12 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
-import { useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { Text } from '../../components/Text';
 import { TopAppBar } from '../../components/TopAppBar';
-import { StatTile } from '../../components/StatTile';
 import { CalendarDayCell } from '../../components/CalendarDayCell';
 import { Icon } from '../../components/Icon';
 import { useColors } from '../../constants/theme';
-import { useMonthlyStats, useMonthlyDayStatus, type DayStatus } from '../../lib/hooks/useMonthlyStats';
+import { useMonthlyDayStatus, type DayStatus } from '../../lib/hooks/useMonthlyStats';
 import { useDayPrayerLogs } from '../../lib/hooks/useDayPrayerLogs';
 import { useT } from '../../lib/hooks/useT';
 import type { WaqtName } from '../../lib/prayerTimes';
@@ -33,6 +32,7 @@ const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMag
 };
 
 export default function MemberCalendarScreen() {
+  const router = useRouter();
   const { userId, name } = useLocalSearchParams<{ userId: string; name?: string }>();
   const { t, n, localeTag } = useT();
   const Colors = useColors();
@@ -50,7 +50,6 @@ export default function MemberCalendarScreen() {
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [viewMonth, setViewMonth] = useState(now.getMonth() + 1); // 1-12
 
-  const { data: stats } = useMonthlyStats(viewYear, viewMonth, userId);
   const { data: dayStatus } = useMonthlyDayStatus(viewYear, viewMonth, userId);
 
   const isCurrentMonth = viewYear === now.getFullYear() && viewMonth === now.getMonth() + 1;
@@ -185,24 +184,18 @@ export default function MemberCalendarScreen() {
           </View>
         </View>
 
-        <Text className="text-[18px] font-bold text-on-surface mb-4">{t('thisMonth')}</Text>
-        <View className="flex-row flex-wrap justify-between">
-          <View style={{ width: '48%', marginBottom: 16 }}>
-            <StatTile label={t('prayersDoneStat')} value={n(stats?.prayersDone ?? 0)} icon="check_circle" iconColor={Colors.primary} />
-          </View>
-          <View style={{ width: '48%', marginBottom: 16 }}>
-            <StatTile label={t('bestStreak')} value={n(stats?.bestStreak ?? 0)} icon="local_fire_department" iconColor="#f97316" />
-          </View>
-          <View style={{ width: '48%', marginBottom: 16 }}>
-            <StatTile label={t('daysTracked')} value={n(stats?.daysTracked ?? 0)} icon="visibility" iconColor={Colors.secondary} />
-          </View>
-          <View style={{ width: '48%', marginBottom: 16 }}>
-            <StatTile label={t('monthProgress')} value={`${n(stats?.monthProgress ?? 0)}%`} icon="analytics" emphasis />
-          </View>
-          <View style={{ width: '48%', marginBottom: 16 }}>
-            <StatTile label={t('quranDaysStat')} value={n(stats?.quranDays ?? 0)} icon="menu_book" iconColor="#D4AF37" />
-          </View>
-        </View>
+        <Pressable
+          onPress={() =>
+            router.push({
+              pathname: '/month-stats',
+              params: { year: String(viewYear), month: String(viewMonth), userId, name: name ?? '' },
+            })
+          }
+          className="flex-row items-center justify-between bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-surface-container-low active:opacity-80"
+        >
+          <Text className="text-[14px] font-bold text-on-surface">{t('seeMonthStats')}</Text>
+          <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
+        </Pressable>
       </ScrollView>
     </View>
   );
