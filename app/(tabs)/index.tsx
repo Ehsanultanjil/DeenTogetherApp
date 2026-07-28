@@ -189,6 +189,15 @@ export default function Home() {
   const makruhDurationMs = activeMakruh ? activeMakruh.end.getTime() - activeMakruh.start.getTime() : 0;
   const makruhRemainingMs = activeMakruh ? Math.max(0, activeMakruh.end.getTime() - now.getTime()) : 0;
   const makruhProgress = makruhDurationMs > 0 ? (makruhRemainingMs / makruhDurationMs) * 100 : 0;
+  // Between the Fajr window ending (sunrise) and Dhuhr starting, `current`
+  // above stays stuck on Fajr with remainingMs clamped to 0 (its own window
+  // already ended) — the ring would otherwise show a dead 00:00:00 "Fajr".
+  // Duha is display-only (never logged/tracked as a waqt), so it's handled
+  // entirely here rather than folded into `windows`.
+  const inDuha = !activeMakruh && now >= times.duha.start && now < times.duha.end;
+  const duhaDurationMs = times.duha.end.getTime() - times.duha.start.getTime();
+  const duhaRemainingMs = Math.max(0, times.duha.end.getTime() - now.getTime());
+  const duhaProgress = duhaDurationMs > 0 ? (duhaRemainingMs / duhaDurationMs) * 100 : 0;
   const tomorrowFajr = times.windows[times.windows.length - 1].end;
   // Islamic midnight (moddhorat) — midpoint of the night from Maghrib to
   // next Fajr, not clock midnight. Isha becomes makruh to delay past this.
@@ -242,8 +251,16 @@ export default function Home() {
         >
           {activeMakruh ? (
             <ProgressRing size={90} strokeWidth={9} progress={makruhProgress} color="#ff0000" trackColor="transparent">
-              <Text className="text-error font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
-              <Text className="text-error text-[12px] font-bold mt-0.5">{formatCountdown(makruhRemainingMs, n)}</Text>
+              <Text className="text-on-primary-container font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
+              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">{formatCountdown(makruhRemainingMs, n)}</Text>
+            </ProgressRing>
+          ) : inDuha ? (
+            <ProgressRing size={90} strokeWidth={9} progress={duhaProgress} color="#a8e7c5" trackColor="transparent">
+              <Text className="text-on-primary-container font-bold text-[13px]">{t('duhaTimeRingLabel')}</Text>
+              <Text className="text-on-primary-container text-[10px] opacity-80">{t('left')}</Text>
+              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">
+                {formatCountdown(duhaRemainingMs, n)}
+              </Text>
             </ProgressRing>
           ) : (
             <ProgressRing size={90} strokeWidth={9} progress={currentProgress} color="#a8e7c5" trackColor="transparent">

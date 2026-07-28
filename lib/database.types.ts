@@ -363,6 +363,21 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_family_prayer_grid: {
+        Args: { p_family_id: string }
+        Returns: {
+          user_id: string
+          full_name: string
+          avatar_url: string
+          role: string
+          last_latitude: number | null
+          last_longitude: number | null
+          calc_method: string | null
+          madhab: string | null
+          safety_margin_minutes: number
+          logs: Json
+        }[]
+      }
       send_prayer_reminder: {
         Args: { p_recipient_id: string; p_prayer_name: string; p_prayer_date: string }
         Returns: {

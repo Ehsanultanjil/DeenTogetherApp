@@ -31,7 +31,7 @@ type LocationState = {
   // startup gate (same convention as the other stores) so cached coords are
   // already in memory before the first screen ever paints.
   hydrate: () => Promise<void>;
-  setManualCoords: (coords: Coords) => void;
+  setManualCoords: (coords: Coords, userId?: string) => void;
   // Silently fetches a fresh fix (permission + GPS, falling back to the
   // last coords saved server-side for a fresh install). Never throws —
   // failures just leave whatever coords/status were already there.
@@ -56,8 +56,19 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     }
   },
 
-  setManualCoords: (coords) => {
+  setManualCoords: (coords, userId) => {
     set({ coords, status: 'granted' });
+    // Family members' per-waqt "missed" status is computed against each
+    // member's OWN last-known location (see get_family_prayer_grid) — GPS
+    // coords sync to profiles in refresh() below, but manual-district picks
+    // never did, leaving that member's server-side location stale/null.
+    if (userId) {
+      supabase
+        .from('profiles')
+        .update({ last_latitude: coords.latitude, last_longitude: coords.longitude })
+        .eq('id', userId)
+        .then(() => {}, () => {});
+    }
   },
 
   refresh: async (userId) => {

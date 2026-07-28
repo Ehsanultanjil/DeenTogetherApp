@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import { AppState } from 'react-native';
 import { useLocation } from './useLocation';
 import {
   computePrayerTimes,
@@ -22,6 +23,19 @@ export function usePrayerTimes(settings: { calcMethod: CalcMethodKey; madhab: Ma
   useEffect(() => {
     const id = setInterval(() => setTick(Date.now()), 60_000);
     return () => clearInterval(id);
+  }, []);
+
+  // Android throttles/suspends JS timers while backgrounded (screen locked,
+  // app switched away, Doze), so the 60s interval above can silently stall
+  // for hours — freezing `times`/`logDateString` from before Fajr and making
+  // isBeforeTodayFajr compare a stale `now` against a stale window forever
+  // (showing yesterday's completed state well into today). Force an
+  // immediate recompute whenever the app comes back to the foreground.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') setTick(Date.now());
+    });
+    return () => sub.remove();
   }, []);
 
   const { times, logDateString, displayWindows } = useMemo(() => {

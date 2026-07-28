@@ -23,7 +23,7 @@ export function useLocation() {
     if (preference.mode === 'manual') {
       const district = BANGLADESH_DISTRICTS.find((d) => d.id === preference.districtId);
       if (district) {
-        setManualCoords({ latitude: district.latitude, longitude: district.longitude });
+        setManualCoords({ latitude: district.latitude, longitude: district.longitude }, userId);
         return;
       }
     }

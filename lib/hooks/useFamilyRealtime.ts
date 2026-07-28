@@ -15,10 +15,18 @@ export function useFamilyRealtime(familyId: string | null) {
       .channel(`family-${familyId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'prayer_logs' }, () => {
         queryClient.invalidateQueries({ queryKey: ['familyTodayStatus', familyId] });
+        queryClient.invalidateQueries({ queryKey: ['familyPrayerGridRaw', familyId] });
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'family_members' }, () => {
         queryClient.invalidateQueries({ queryKey: ['familyTodayStatus', familyId] });
+        queryClient.invalidateQueries({ queryKey: ['familyPrayerGridRaw', familyId] });
         queryClient.invalidateQueries({ queryKey: ['memberships'] });
+      })
+      // New request, approve, decline all land here — admin's pending list
+      // and the members grid (approval inserts into family_members too,
+      // covered above) both need to refresh live off this.
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'family_join_requests' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['pendingJoinRequests', familyId] });
       })
       .subscribe();
 

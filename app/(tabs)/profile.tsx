@@ -9,6 +9,7 @@ import { AvatarPickerModal } from '../../components/AvatarPickerModal';
 import { useColors } from '../../constants/theme';
 import { resolveAvatarSource } from '../../constants/avatarPresets';
 import { supabase } from '../../lib/supabase';
+import { confirmDestructive } from '../../lib/confirmDestructive';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useAvatar } from '../../lib/hooks/useAvatar';
 import { useFullName } from '../../lib/hooks/useFullName';
@@ -34,7 +35,7 @@ export default function ProfileScreen() {
       <ScrollView
         className="flex-1 px-gutter"
         contentContainerClassName="items-center"
-        contentContainerStyle={{ paddingBottom: tabBarHeight + 16, paddingTop: 24 }}
+        contentContainerStyle={{ paddingBottom: 16, paddingTop: 24 }}
       >
         <Pressable onPress={() => setAvatarPickerOpen(true)} className="w-24 h-24 rounded-full mb-4 active:opacity-80">
           <View className="w-24 h-24 bg-surface-container-high rounded-full items-center justify-center overflow-hidden">
@@ -118,15 +119,21 @@ export default function ProfileScreen() {
             <Text className="text-on-surface">{t('sectionSettings')}</Text>
             <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
           </Pressable>
-
-          <Pressable
-            onPress={() => supabase.auth.signOut()}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <Text className="text-error font-semibold">{t('logOut')}</Text>
-          </Pressable>
         </View>
       </ScrollView>
+
+      <View className="w-full px-gutter" style={{ paddingBottom: tabBarHeight + 16, paddingTop: 8 }}>
+        <Pressable
+          onPress={() =>
+            confirmDestructive(t('logoutConfirmTitle'), t('logoutConfirmBody'), t('logOut'), t('cancel'), () =>
+              supabase.auth.signOut(),
+            )
+          }
+          className="w-full p-4 bg-error/10 rounded-xl border border-error flex-row justify-between items-center active:opacity-70"
+        >
+          <Text className="text-error font-semibold">{t('logOut')}</Text>
+        </Pressable>
+      </View>
 
       <AvatarPickerModal
         visible={avatarPickerOpen}

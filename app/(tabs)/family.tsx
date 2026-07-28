@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ActivityIndicator, Alert, Image, Pressable, ScrollView, View } from 'react-native';
+import { ActivityIndicator, Image, Pressable, ScrollView, View } from 'react-native';
 import { Text } from '../../components/Text';
 import { TextInput } from '../../components/TextInput';
 import { useRouter } from 'expo-router';
@@ -7,16 +7,18 @@ import * as Clipboard from 'expo-clipboard';
 import { Share } from 'react-native';
 import { TopAppBar } from '../../components/TopAppBar';
 import { InviteCodeCard } from '../../components/InviteCodeCard';
-import { FamilyMemberRow } from '../../components/FamilyMemberRow';
+import { FamilyMemberPrayerCard } from '../../components/FamilyMemberPrayerCard';
 import { FamilyDeleteModal } from '../../components/FamilyDeleteModal';
 import { Icon } from '../../components/Icon';
 import { useColors } from '../../constants/theme';
 import { resolveAvatarSource } from '../../constants/avatarPresets';
 import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
+import { confirmDestructive } from '../../lib/confirmDestructive';
 import {
   useMyMemberships,
   useCurrentFamilyId,
   useFamilyTodayStatus,
+  useFamilyPrayerGrid,
   useCreateFamily,
   useSwitchFamily,
   useLeaveFamily,
@@ -30,7 +32,16 @@ import { useT } from '../../lib/hooks/useT';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { usePrayerTimes } from '../../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../../lib/hooks/useClockTick';
-import { getCurrentWaqt } from '../../lib/prayerTimes';
+import { getCurrentWaqt, getWaqtVisualState, type WaqtName, type WaqtVisualState } from '../../lib/prayerTimes';
+
+const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
+  fajr: 'waqtFajr',
+  dhuhr: 'waqtDhuhr',
+  asr: 'waqtAsr',
+  maghrib: 'waqtMaghrib',
+  isha: 'waqtIsha',
+};
 
 function CreateFamilyPrompt() {
   const router = useRouter();
@@ -78,8 +89,18 @@ export default function FamilyScreen() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const tabBarHeight = useTabBarHeight();
 
-  const { data: memberships, isLoading: membershipsLoading } = useMyMemberships();
-  const { data: currentFamilyId, isLoading: currentLoading } = useCurrentFamilyId();
+  const {
+    data: memberships,
+    isLoading: membershipsLoading,
+    isError: membershipsErrored,
+    refetch: refetchMemberships,
+  } = useMyMemberships();
+  const {
+    data: currentFamilyId,
+    isLoading: currentLoading,
+    isError: currentFamilyErrored,
+    refetch: refetchCurrentFamilyId,
+  } = useCurrentFamilyId();
   const switchFamily = useSwitchFamily();
   const leaveFamily = useLeaveFamily();
   const promoteMember = usePromoteMember();
@@ -91,6 +112,8 @@ export default function FamilyScreen() {
   const currentWaqt = times ? getCurrentWaqt(times.windows, now).current.name : null;
 
   const { data: members } = useFamilyTodayStatus(currentFamilyId ?? null, currentWaqt);
+  const { data: prayerGrid } = useFamilyPrayerGrid(currentFamilyId ?? null);
+  const prayerGridByUserId = new Map((prayerGrid ?? []).map((m) => [m.userId, m]));
 
   const current = memberships?.find((m) => m.familyId === currentFamilyId);
   const { data: pendingRequests } = usePendingJoinRequests(currentFamilyId ?? null, current?.role === 'admin');
@@ -112,6 +135,31 @@ export default function FamilyScreen() {
     return (
       <View className="flex-1 bg-surface items-center justify-center">
         <ActivityIndicator color={Colors.primary} />
+      </View>
+    );
+  }
+
+  // Falling through to the "not in any family" empty state on a fetch error
+  // (rather than surfacing it) is exactly what made this look like "you're
+  // in no family" while join_family_by_code's own membership check said
+  // otherwise — the fetch failed, it wasn't actually empty.
+  if (membershipsErrored || currentFamilyErrored) {
+    return (
+      <View className="flex-1 bg-surface">
+        <TopAppBar title={t('myFamilyTitle')} />
+        <View className="flex-1 items-center justify-center px-gutter gap-4">
+          <Icon name="info" size={32} color={Colors.error} />
+          <Text className="text-[14px] text-on-surface-variant text-center">{t('familyLoadError')}</Text>
+          <Pressable
+            onPress={() => {
+              refetchMemberships();
+              refetchCurrentFamilyId();
+            }}
+            className="px-6 py-3 bg-primary rounded-full active:opacity-90"
+          >
+            <Text className="text-on-primary font-bold text-[14px]">{t('retry')}</Text>
+          </Pressable>
+        </View>
       </View>
     );
   }
@@ -211,17 +259,29 @@ export default function FamilyScreen() {
         <View className="gap-3">
           {(members ?? []).map((m) => {
             const isSelf = m.user_id === session?.user.id;
+            const grid = prayerGridByUserId.get(m.user_id);
+            let waqtStates: Record<WaqtName, WaqtVisualState> | null = null;
+            if (grid?.windows) {
+              const memberCurrentWaqt = isSelf ? currentWaqt : getCurrentWaqt(grid.windows, now).current.name;
+              waqtStates = Object.fromEntries(
+                WAQT_ORDER.map((waqt) => {
+                  const window = grid.windows!.find((w) => w.name === waqt)!;
+                  return [waqt, getWaqtVisualState(window, grid.completion[waqt], memberCurrentWaqt, now)];
+                }),
+              ) as Record<WaqtName, WaqtVisualState>;
+            }
             const row = (
-              <FamilyMemberRow
+              <FamilyMemberPrayerCard
                 key={m.user_id}
                 name={isSelf ? `${m.full_name ?? t('memberRole')} ${t('youSuffix')}` : (m.full_name ?? t('memberRole'))}
                 role={m.role === 'admin' ? t('familyAdmin') : t('memberRole')}
                 progressLabel={`${n(m.percent)}%`}
-                dotsCompleted={0}
                 avatarUri={m.avatar_url ?? undefined}
                 isAdmin={m.role === 'admin'}
-                size="lg"
                 todayLabel={t('todayLabel')}
+                waqtStates={waqtStates}
+                waqtLabel={(waqt) => t(WAQT_KEY[waqt])}
+                locationUnknownLabel={t('familyLocationUnknown')}
               />
             );
             if (isSelf) return row;
@@ -247,8 +307,13 @@ export default function FamilyScreen() {
             </Pressable>
           ) : (
             <Pressable
-              onPress={() => current && leaveFamily.mutate(current.familyId)}
-              className="flex-row items-center gap-2 px-6 py-3"
+              onPress={() =>
+                current &&
+                confirmDestructive(t('leaveFamilyConfirmTitle'), t('leaveFamilyConfirmBody'), t('leaveThisFamily'), t('cancel'), () =>
+                  leaveFamily.mutate(current.familyId),
+                )
+              }
+              className="flex-row items-center gap-2 px-6 py-3 bg-error/10 border border-error rounded-full"
             >
               <Text className="text-error text-[14px] font-bold">{t('leaveThisFamily')}</Text>
             </Pressable>

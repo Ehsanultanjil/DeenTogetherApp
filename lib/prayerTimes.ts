@@ -53,6 +53,12 @@ export type DayPrayerTimes = {
   isha: Date;
   windows: WaqtWindow[];
   makruh: MakruhWindow[];
+  // Duha (mid-morning nafl prayer) — display-only, never tracked as a waqt
+  // (no log row, not part of `windows`). Starts 20min after sunrise (past
+  // the sunrise makruh window) and runs until Dhuhr begins, so the Home
+  // ring has something to show during the fajr-window-ended-but-not-yet-
+  // dhuhr gap instead of sitting at a stuck 00:00:00 "Fajr" countdown.
+  duha: { start: Date; end: Date };
   // IANA zone for the prayer location itself — NOT necessarily the device's
   // own timezone (e.g. testing with mocked GPS, or a misconfigured device
   // clock). All display formatting must use this, not the device default.
@@ -172,6 +178,9 @@ export function computePrayerTimes(params: {
     isha: pt.isha,
     windows,
     makruh,
+    // Ends at istiwa (sun approaching zenith), not Dhuhr itself — same
+    // boundary as the `istiwa` makruh window above, 10min before Dhuhr.
+    duha: { start: new Date(pt.sunrise.getTime() + 20 * MIN), end: new Date(pt.dhuhr.getTime() - 10 * MIN) },
     timeZone,
   };
 }
@@ -210,6 +219,23 @@ export function getCurrentMakruh(makruh: MakruhWindow[], now: Date = new Date())
 // night's Isha is still open but hasn't yet rolled into "today".
 export function isBeforeTodayFajr(times: DayPrayerTimes, now: Date = new Date()): boolean {
   return now.getTime() < times.windows[0].start.getTime();
+}
+
+export type WaqtVisualState = 'done' | 'current' | 'missed' | 'upcoming';
+
+// Shared done/current/missed/upcoming classification for a single waqt
+// circle — used by both Home's hero ring row and the Family tab's per-member
+// grid so the two stay visually consistent.
+export function getWaqtVisualState(
+  window: WaqtWindow,
+  isDone: boolean,
+  currentWaqtName: WaqtName | null,
+  now: Date,
+): WaqtVisualState {
+  if (isDone) return 'done';
+  if (window.name === currentWaqtName) return 'current';
+  if (now.getTime() >= window.end.getTime()) return 'missed';
+  return 'upcoming';
 }
 
 export function formatTime(d: Date, timeZone?: string, localeTag?: string) {
