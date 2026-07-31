@@ -212,11 +212,14 @@ export function MonthCalendarGrid({ title, targetUserId, contentPaddingBottom, o
             {isOwnCalendar && ownGender === 'female' ? (
               <Pressable
                 onPress={isPaused ? endPause : startPause}
-                className={`rounded-xl p-3 border items-center active:opacity-80 ${
-                  isPaused ? 'bg-error/10 border-error' : 'bg-primary-container border-primary'
-                }`}
+                className="rounded-xl p-3 border items-center active:opacity-80"
+                style={
+                  isPaused
+                    ? { backgroundColor: '#fce7f3', borderColor: '#f472b6' }
+                    : { backgroundColor: '#fce7f3', borderColor: '#f9a8d4' }
+                }
               >
-                <Text className={`text-[12px] font-bold ${isPaused ? 'text-error' : 'text-on-primary-container'}`}>
+                <Text className="text-[12px] font-bold" style={{ color: '#9d174d' }}>
                   {isPaused ? t('endPeriodPause') : t('startPeriodPause')}
                 </Text>
               </Pressable>

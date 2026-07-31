@@ -102,21 +102,27 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
       }
     };
 
-    const inTabs = group === '(tabs)';
     const inOnboarding = group === 'onboarding';
 
     if (!session) {
-      // Logged out from a protected group: redirect back to login. This
-      // MUST run here at the root, not from inside (tabs)/_layout: both
-      // app/index.tsx and app/(tabs)/index.tsx resolve to the URL "/"
-      // (route groups are invisible in the path), so a <Redirect href="/">
-      // rendered *inside* the tabs group resolves to the nearest match —
-      // (tabs)/index (Home) — never leaves the group, and re-fires forever
-      // (reproduced: 3000+ navigations, a hard redirect loop). Fired from
-      // the root navigator, "/" resolves to app/index.tsx (login) as
-      // intended. The layout guards stay passive (render null) so they
-      // don't compete.
-      if (inTabs || inOnboarding) {
+      // Logged out from any authenticated screen: redirect back to login.
+      // Deliberately not scoped to just inTabs/inOnboarding — plenty of
+      // authenticated screens (profile/settings, profile/namaj, family/*,
+      // today, month-stats, ...) are top-level routes outside both groups,
+      // and account deletion's confirm flow lives on one of them
+      // (profile/settings); scoping this to only (tabs)/onboarding left
+      // session-drop from any of those routes with no redirect at all —
+      // the user stayed stuck on the same (now-broken) screen after
+      // deleting their account. This MUST run here at the root, not from
+      // inside (tabs)/_layout: both app/index.tsx and app/(tabs)/index.tsx
+      // resolve to the URL "/" (route groups are invisible in the path), so
+      // a <Redirect href="/"> rendered *inside* the tabs group resolves to
+      // the nearest match — (tabs)/index (Home) — never leaves the group,
+      // and re-fires forever (reproduced: 3000+ navigations, a hard
+      // redirect loop). Fired from the root navigator, "/" resolves to
+      // app/index.tsx (login) as intended. The layout guards stay passive
+      // (render null) so they don't compete.
+      if (group !== undefined) {
         router.replace('/');
         return;
       }

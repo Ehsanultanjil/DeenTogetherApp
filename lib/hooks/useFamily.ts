@@ -2,7 +2,17 @@ import { useMemo } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
-import { computePrayerTimes, locationDateString, type CalcMethodKey, type MadhabKey, type WaqtName, type WaqtWindow } from '../prayerTimes';
+import {
+  computePrayerTimes,
+  isBeforeTodayFajr,
+  locationDateString,
+  type CalcMethodKey,
+  type MadhabKey,
+  type WaqtName,
+  type WaqtWindow,
+} from '../prayerTimes';
+
+const DAY_MS = 24 * 60 * 60 * 1000;
 import { WAQT_ORDER } from '../../constants/waqt';
 
 export type Membership = {
@@ -159,14 +169,26 @@ export function useFamilyPrayerGrid(familyId: string | null) {
           completion: { ...EMPTY_COMPLETION },
         };
       }
-      const times = computePrayerTimes({
+      const now = new Date();
+      const params = {
         latitude: row.last_latitude!,
         longitude: row.last_longitude!,
         calcMethod: (row.calc_method as CalcMethodKey) ?? 'MuslimWorldLeague',
         madhab: (row.madhab as MadhabKey) ?? 'shafii',
         safetyMarginMinutes: row.safety_margin_minutes ?? 0,
-      });
-      const memberDateString = locationDateString(times.timeZone);
+      };
+      const todayTimes = computePrayerTimes({ ...params, date: now });
+      // Between local midnight and this member's own real Fajr, the whole
+      // prayer day still belongs to yesterday (Fajr-to-Fajr, not midnight-
+      // to-midnight) — same carryover usePrayerTimes.ts applies for Home.
+      // Without this, the grid computed "today"'s (not-yet-started) windows
+      // and tried to match completion against today's date, while the
+      // member's actual checked-off rows from tonight are still filed under
+      // yesterday's date — every waqt showed as blank/upcoming instead of
+      // reflecting what they actually did.
+      const isCarryover = isBeforeTodayFajr(todayTimes, now);
+      const times = isCarryover ? computePrayerTimes({ ...params, date: new Date(now.getTime() - DAY_MS) }) : todayTimes;
+      const memberDateString = locationDateString(times.timeZone, isCarryover ? new Date(now.getTime() - DAY_MS) : now);
       const completion = { ...EMPTY_COMPLETION };
       for (const log of row.logs ?? []) {
         if (log.prayer_date === memberDateString && WAQT_ORDER.includes(log.prayer_name)) {

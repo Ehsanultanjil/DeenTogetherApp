@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useRouter } from 'expo-router';
@@ -5,6 +6,7 @@ import { TopAppBar } from '../components/TopAppBar';
 import { ProgressRing } from '../components/ProgressRing';
 import { PrayerCard } from '../components/PrayerCard';
 import { Icon } from '../components/Icon';
+import { DailyHadithPopup } from '../components/DailyHadithPopup';
 import { useColors } from '../constants/theme';
 import { usePrayerTimes } from '../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../lib/hooks/useClockTick';
@@ -13,6 +15,7 @@ import { useTodayPrayerLogs } from '../lib/hooks/usePrayerLogs';
 import { useTodayQuranLog } from '../lib/hooks/useQuranLog';
 import { useT } from '../lib/hooks/useT';
 import { formatTime, isJummahDay, locationDateString } from '../lib/prayerTimes';
+import { hadithForDate } from '../lib/hadiths';
 import { WAQT_ICON, waqtDisplayKey } from '../constants/waqt';
 
 export default function TodayPrayers() {
@@ -28,6 +31,8 @@ export default function TodayPrayers() {
   const effectiveDateString = logDateString ?? dateString;
   const { completed, toggle } = useTodayPrayerLogs(effectiveDateString);
   const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
+  const [hadithOpen, setHadithOpen] = useState(false);
+  const todaysHadith = hadithForDate(effectiveDateString ?? '');
 
   const completedCount = Object.values(completed).filter(Boolean).length;
   const percentage = Math.round((completedCount / 5) * 100);
@@ -99,6 +104,17 @@ export default function TodayPrayers() {
           />
         </View>
 
+        <Pressable
+          onPress={() => setHadithOpen(true)}
+          className="mt-3 bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-surface-variant flex-row items-center justify-between active:opacity-80"
+        >
+          <View className="flex-row items-center gap-3">
+            <Icon name="menu_book" color={Colors.primary} />
+            <Text className="text-on-surface">{t('dailyHadithTitle')}</Text>
+          </View>
+          <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
+        </Pressable>
+
         <View className="mt-8">
           <Pressable
             onPress={() => router.back()}
@@ -109,6 +125,7 @@ export default function TodayPrayers() {
           <Text className="text-center text-[12px] text-on-surface-variant mt-4">{t('savedInstantly')}</Text>
         </View>
       </ScrollView>
+      <DailyHadithPopup visible={hadithOpen} hadith={todaysHadith} onDismiss={() => setHadithOpen(false)} />
     </View>
   );
 }

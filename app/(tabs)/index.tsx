@@ -8,6 +8,7 @@ import { HomePrayerTimeline } from '../../components/HomePrayerTimeline';
 import { SahriIftarCountdownRow } from '../../components/SahriIftarCountdownRow';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
 import { PrayerNotificationHistoryModal } from '../../components/PrayerNotificationHistoryModal';
+import { DailyHadithPopup } from '../../components/DailyHadithPopup';
 import { Icon } from '../../components/Icon';
 import { LocationPicker } from '../../components/LocationPicker';
 import { useColors } from '../../constants/theme';
@@ -21,6 +22,8 @@ import { usePrayerNotifications } from '../../lib/hooks/usePrayerNotifications';
 import { useNotificationSettings } from '../../lib/hooks/useNotificationSettings';
 import { useCurrentFamilyId, useFamilyTodayStatus } from '../../lib/hooks/useFamily';
 import { usePeriodPause } from '../../lib/hooks/usePeriodPause';
+import { useDailyHadithPopup } from '../../lib/hooks/useDailyHadithPopup';
+import { hadithForDate } from '../../lib/hadiths';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationPreferenceStore } from '../../store/useLocationPreferenceStore';
 import { BANGLADESH_DISTRICTS, nearestDistrict } from '../../lib/bangladeshDistricts';
@@ -83,6 +86,12 @@ export default function Home() {
   const effectiveCompleted = logDateString ? carryoverCompleted : completed;
   const effectiveDateString = logDateString ?? dateString;
   const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
+
+  // "First time you open the app after Fajr starts" — !logDateString means
+  // we're past the pre-Fajr carryover (see usePrayerTimes.ts), i.e. today's
+  // real Fajr has actually begun.
+  const { visible: hadithPopupVisible, dismiss: dismissHadithPopup } = useDailyHadithPopup(dateString, !logDateString);
+  const todaysHadith = useMemo(() => hadithForDate(dateString ?? ''), [dateString]);
 
   // Tomorrow through NOTIFICATION_LOOKAHEAD_DAYS days out — scheduled every
   // sync so a user who's offline or doesn't open the app for a while still
@@ -361,7 +370,7 @@ export default function Home() {
             }}
           >
             <Text className="text-[9.5px] text-on-primary-container/100" style={{ lineHeight: 12 }} numberOfLines={1}>
-              <Text className="italic">{t('hadithQuote')}</Text>
+              <Text>{t('hadithQuote')}</Text>
               <Text className="text-on-primary-container/80"> {t('hadithReference')}</Text>
             </Text>
           </View>
@@ -455,6 +464,7 @@ export default function Home() {
         completed={completed}
         now={now}
       />
+      <DailyHadithPopup visible={hadithPopupVisible} hadith={todaysHadith} onDismiss={dismissHadithPopup} />
     </View>
   );
 }

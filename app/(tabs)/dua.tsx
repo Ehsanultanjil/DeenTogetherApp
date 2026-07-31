@@ -28,7 +28,9 @@ export default function DuaScreen() {
               >
                 {dua.arabic}
               </Text>
-              <Text className="text-[13px] italic text-on-surface-variant mb-3">{dua.transliteration}</Text>
+              <Text className="text-[13px] italic text-on-surface-variant mb-3">
+                {locale === 'bn' ? dua.transliteration.bn : dua.transliteration.en}
+              </Text>
               <Text className="text-[12px] font-bold text-on-surface-variant mb-1">{t('meaning')}</Text>
               <Text className="text-[14px] text-on-surface">
                 {locale === 'bn' ? dua.meaning.bn : dua.meaning.en}
