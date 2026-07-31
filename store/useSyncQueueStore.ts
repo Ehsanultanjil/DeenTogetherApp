@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import type { PrayerSettingsPatch } from '../lib/hooks/usePrayerSettings';
+import { clearPersisted, readPersisted, writePersisted } from '../lib/storePersistence';
 
 const STORAGE_KEY = 'deentogether.syncQueue';
 const MAX_ATTEMPTS = 5;
@@ -11,7 +11,8 @@ export type QueuedAction =
   | { id: string; kind: 'updatePrayerSettings'; payload: { userId: string; patch: PrayerSettingsPatch }; createdAt: number; attempts: number }
   | { id: string; kind: 'updateNotificationSettings'; payload: { userId: string; enabled: boolean }; createdAt: number; attempts: number }
   | { id: string; kind: 'updateFullName'; payload: { userId: string; fullName: string }; createdAt: number; attempts: number }
-  | { id: string; kind: 'updateAvatar'; payload: { userId: string; avatarUrl: string }; createdAt: number; attempts: number };
+  | { id: string; kind: 'updateAvatar'; payload: { userId: string; avatarUrl: string }; createdAt: number; attempts: number }
+  | { id: string; kind: 'updateLocation'; payload: { userId: string; latitude: number; longitude: number }; createdAt: number; attempts: number };
 
 type SyncQueueState = {
   queue: QueuedAction[];
@@ -20,10 +21,14 @@ type SyncQueueState = {
   enqueue: (action: Omit<QueuedAction, 'id' | 'createdAt' | 'attempts'>) => void;
   dequeue: (id: string) => void;
   bumpAttempts: (id: string) => void;
+  // Called on sign-out — queued writes are keyed to the account that made
+  // them, so replaying them under a different signed-in user would just
+  // fail RLS's user_id = auth.uid() check and burn retries for nothing.
+  reset: () => void;
 };
 
 function persist(queue: QueuedAction[]) {
-  AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(queue)).catch(() => {});
+  writePersisted(STORAGE_KEY, JSON.stringify(queue));
 }
 
 // Persisted FIFO outbox of offline mutations. Every queued action stores
@@ -35,16 +40,9 @@ export const useSyncQueueStore = create<SyncQueueState>((set, get) => ({
   hydrated: false,
 
   hydrate: async () => {
-    try {
-      const raw = await AsyncStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        set({ queue: JSON.parse(raw) as QueuedAction[] });
-      }
-    } catch {
-      // Corrupt/unreadable queue — start empty rather than block startup.
-    } finally {
-      set({ hydrated: true });
-    }
+    const queue = await readPersisted(STORAGE_KEY, (raw) => JSON.parse(raw) as QueuedAction[]);
+    if (queue) set({ queue });
+    set({ hydrated: true });
   },
 
   enqueue: (action) => {
@@ -69,6 +67,11 @@ export const useSyncQueueStore = create<SyncQueueState>((set, get) => ({
     const queue = get().queue.map((a) => (a.id === id ? { ...a, attempts: a.attempts + 1 } : a));
     set({ queue });
     persist(queue);
+  },
+
+  reset: () => {
+    set({ queue: [] });
+    clearPersisted(STORAGE_KEY);
   },
 }));
 

@@ -148,6 +148,38 @@ export type Database = {
           },
         ]
       }
+      period_pauses: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          id: string
+          start_date: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          start_date?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "period_pauses_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       prayer_logs: {
         Row: {
           completed: boolean
@@ -235,6 +267,7 @@ export type Database = {
           created_at: string
           current_family_id: string | null
           full_name: string | null
+          gender: string | null
           id: string
           last_latitude: number | null
           last_longitude: number | null
@@ -249,6 +282,7 @@ export type Database = {
           created_at?: string
           current_family_id?: string | null
           full_name?: string | null
+          gender?: string | null
           id: string
           last_latitude?: number | null
           last_longitude?: number | null
@@ -263,6 +297,7 @@ export type Database = {
           created_at?: string
           current_family_id?: string | null
           full_name?: string | null
+          gender?: string | null
           id?: string
           last_latitude?: number | null
           last_longitude?: number | null

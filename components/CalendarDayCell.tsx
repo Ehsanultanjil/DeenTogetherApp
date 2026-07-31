@@ -93,7 +93,14 @@ export function CalendarDayCell({
             }`}
             style={[circleStyle, isPremium ? { borderWidth: 1.5, borderColor: 'rgba(212,175,55,0.6)' } : undefined]}
           >
-            <Text className={`font-bold text-[14px] ${!dotColor ? 'text-primary' : ''}`} style={textStyle}>
+            {/* isToday always gets legible text, even if a dotColor exists
+                for today (some prayers already logged) — the ring-not-fill
+                design above intentionally drops the background fill for
+                today, but textStyle is only ever set in the dotColor
+                branch, which isToday short-circuits; leaving text color
+                unset here fell back to RN's default black, invisible
+                against a dark-mode cell background. */}
+            <Text className={`font-bold text-[14px] ${isToday || !dotColor ? 'text-primary' : ''}`} style={isToday ? undefined : textStyle}>
               {day}
             </Text>
           </View>

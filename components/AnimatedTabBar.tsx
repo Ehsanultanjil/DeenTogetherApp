@@ -5,10 +5,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withTiming } from 'react-na
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { Text } from './Text';
-import { FONT_BY_WEIGHT } from './fontByWeight';
 import { DarkColors } from '../constants/theme';
 import type { MaterialSymbolName } from '../constants/materialSymbols';
-import { useLocaleStore } from '../store/useLocaleStore';
 
 const TAB_ICON: Record<string, MaterialSymbolName> = {
   index: 'home',
@@ -26,7 +24,6 @@ type TabLayout = { x: number; width: number };
 // transition of its own.
 export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarProps) {
   const insets = useSafeAreaInsets();
-  const locale = useLocaleStore((s) => s.locale);
   const [layouts, setLayouts] = useState<TabLayout[]>([]);
   const pillX = useSharedValue(0);
   const pillWidth = useSharedValue(0);
@@ -44,7 +41,7 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
     width: pillWidth.value,
   }));
 
-  const handleLayout = (index: number) => (e: LayoutChangeEvent) => {
+  const onTabLayout = (index: number) => (e: LayoutChangeEvent) => {
     const { x, width } = e.nativeEvent.layout;
     setLayouts((prev) => {
       const next = [...prev];
@@ -103,12 +100,12 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
         return (
           <Pressable
             key={route.key}
-            onLayout={handleLayout(index)}
+            onLayout={onTabLayout(index)}
             onPress={onPress}
             style={{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: 2, zIndex: 1 }}
           >
             <Icon name={TAB_ICON[route.name]} filled={focused} color={tintColor} />
-            <Text style={{ fontSize: 12, fontWeight: '600', fontFamily: FONT_BY_WEIGHT[locale][600], color: tintColor }}>
+            <Text className="text-[12px] font-semibold" style={{ color: tintColor }}>
               {label}
             </Text>
           </Pressable>

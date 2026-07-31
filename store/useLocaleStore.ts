@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readPersisted, writePersisted } from '../lib/storePersistence';
 
 export type Locale = 'bn' | 'en';
 
@@ -17,16 +17,11 @@ export const useLocaleStore = create<LocaleState>((set) => ({
   hydrated: false,
   setLocale: (locale) => {
     set({ locale });
-    AsyncStorage.setItem(STORAGE_KEY, locale).catch(() => {});
+    writePersisted(STORAGE_KEY, locale);
   },
   hydrate: async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved === 'bn' || saved === 'en') {
-        set({ locale: saved });
-      }
-    } finally {
-      set({ hydrated: true });
-    }
+    const saved = await readPersisted(STORAGE_KEY, (raw) => (raw === 'bn' || raw === 'en' ? raw : null));
+    if (saved) set({ locale: saved });
+    set({ hydrated: true });
   },
 }));

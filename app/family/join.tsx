@@ -8,6 +8,7 @@ import { Icon } from '../../components/Icon';
 import { useColors } from '../../constants/theme';
 import { useJoinFamily } from '../../lib/hooks/useFamily';
 import { useT } from '../../lib/hooks/useT';
+import { getErrorMessage } from '../../lib/getErrorMessage';
 
 export default function JoinFamily() {
   const router = useRouter();
@@ -55,7 +56,7 @@ export default function JoinFamily() {
           className="h-14 px-4 rounded-xl border border-outline-variant bg-surface-container-lowest text-on-surface text-center text-[18px] tracking-widest font-bold mb-4"
         />
         {joinFamily.isError ? (
-          <Text className="text-error text-[13px] mb-4 text-center">{(joinFamily.error as Error).message}</Text>
+          <Text className="text-error text-[13px] mb-4 text-center">{getErrorMessage(joinFamily.error)}</Text>
         ) : null}
         <Pressable
           disabled={!code.trim() || joinFamily.isPending}

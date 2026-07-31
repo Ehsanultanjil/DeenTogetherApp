@@ -3,8 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { computePrayerTimes, locationDateString, type CalcMethodKey, type MadhabKey, type WaqtName, type WaqtWindow } from '../prayerTimes';
-
-const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+import { WAQT_ORDER } from '../../constants/waqt';
 
 export type Membership = {
   familyId: string;
@@ -97,6 +96,10 @@ export type FamilyPrayerGridMember = {
   // viewer's — null when they haven't set a location yet, so the UI can show
   // a muted/unknown state instead of guessing a false "missed".
   windows: WaqtWindow[] | null;
+  // This member's own prayer-location timezone — needed to tell whether
+  // THEIR Dhuhr is landing on a Friday (Jumu'ah), independently of the
+  // viewer's own day/timezone.
+  timeZone: string | null;
   completion: CompletionMap;
 };
 
@@ -152,6 +155,7 @@ export function useFamilyPrayerGrid(familyId: string | null) {
           role: row.role,
           hasLocation: false,
           windows: null,
+          timeZone: null,
           completion: { ...EMPTY_COMPLETION },
         };
       }
@@ -176,6 +180,7 @@ export function useFamilyPrayerGrid(familyId: string | null) {
         role: row.role,
         hasLocation: true,
         windows: times.windows,
+        timeZone: times.timeZone,
         completion,
       };
     });

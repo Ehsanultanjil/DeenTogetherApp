@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { readPersisted, writePersisted } from '../lib/storePersistence';
 
 export type LocationPreference = { mode: 'gps' } | { mode: 'manual'; districtId: string };
 
@@ -17,19 +17,14 @@ export const useLocationPreferenceStore = create<LocationPreferenceState>((set) 
   hydrated: false,
   setPreference: (preference) => {
     set({ preference });
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(preference)).catch(() => {});
+    writePersisted(STORAGE_KEY, JSON.stringify(preference));
   },
   hydrate: async () => {
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved) as LocationPreference;
-        if (parsed && (parsed.mode === 'gps' || parsed.mode === 'manual')) {
-          set({ preference: parsed });
-        }
-      }
-    } finally {
-      set({ hydrated: true });
-    }
+    const saved = await readPersisted(STORAGE_KEY, (raw) => {
+      const parsed = JSON.parse(raw) as LocationPreference;
+      return parsed && (parsed.mode === 'gps' || parsed.mode === 'manual') ? parsed : null;
+    });
+    if (saved) set({ preference: saved });
+    set({ hydrated: true });
   },
 }));

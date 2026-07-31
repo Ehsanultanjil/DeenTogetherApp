@@ -25,16 +25,23 @@ export function useCompleteOnboarding() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: async (vars: { fullName: string; avatarUrl: string }) => {
+    mutationFn: async (vars: { fullName: string; avatarUrl: string; gender: string }) => {
       if (!userId) return;
       const { error } = await supabase
         .from('profiles')
-        .update({ full_name: vars.fullName, avatar_url: vars.avatarUrl, onboarding_completed: true })
+        .update({ full_name: vars.fullName, avatar_url: vars.avatarUrl, gender: vars.gender, onboarding_completed: true })
         .eq('id', userId);
       if (error) throw error;
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['onboardingStatus', userId] });
+      // Set synchronously rather than just invalidating — avatar.tsx
+      // navigates to /(tabs) in this same onSuccess, which re-runs root
+      // layout's redirect effect immediately. invalidateQueries alone only
+      // schedules a refetch (a network round-trip), so that effect could
+      // still read the stale onboardingCompleted=false for one more render
+      // and bounce the user straight back to /onboarding/name — landing
+      // them back on the name/avatar screens right after finishing them.
+      queryClient.setQueryData(['onboardingStatus', userId], true);
       queryClient.invalidateQueries({ queryKey: ['avatar', userId] });
     },
   });

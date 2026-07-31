@@ -1,15 +1,11 @@
 import { useSyncQueueStore, type QueuedAction } from '../../store/useSyncQueueStore';
 import { useSyncStatusStore } from '../../store/useSyncStatusStore';
+import { looksLikeNetworkError } from './networkError';
 
 type DistributiveOmit<T, K extends keyof any> = T extends any ? Omit<T, K> : never;
 type QueueInput = DistributiveOmit<QueuedAction, 'id' | 'createdAt' | 'attempts'>;
 
 type RunOrQueueArgs = QueueInput & { run: () => Promise<void> };
-
-function looksLikeNetworkError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /network|fetch|timeout|offline|failed to connect/i.test(message);
-}
 
 // Every offline-safe mutation's mutationFn is a one-line call to this: runs
 // the real write immediately if online, otherwise (or on a network-shaped

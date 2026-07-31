@@ -1,6 +1,6 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { colorScheme } from 'nativewind';
+import { readPersisted, writePersisted } from '../lib/storePersistence';
 
 export type ThemeMode = 'light' | 'dark';
 
@@ -22,16 +22,12 @@ export const useThemeStore = create<ThemeState>((set) => ({
   setMode: (mode) => {
     set({ mode });
     colorScheme.set(mode);
-    AsyncStorage.setItem(STORAGE_KEY, mode).catch(() => {});
+    writePersisted(STORAGE_KEY, mode);
   },
   hydrate: async () => {
-    let mode: ThemeMode = 'dark';
-    try {
-      const saved = await AsyncStorage.getItem(STORAGE_KEY);
-      if (saved === 'light' || saved === 'dark') mode = saved;
-    } finally {
-      colorScheme.set(mode);
-      set({ mode, hydrated: true });
-    }
+    const saved = await readPersisted(STORAGE_KEY, (raw) => (raw === 'light' || raw === 'dark' ? raw : null));
+    const mode = saved ?? 'dark';
+    colorScheme.set(mode);
+    set({ mode, hydrated: true });
   },
 }));

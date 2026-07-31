@@ -6,6 +6,7 @@ import { TextInput } from '../../components/TextInput';
 import { TopAppBar } from '../../components/TopAppBar';
 import { Icon } from '../../components/Icon';
 import { AvatarPickerModal } from '../../components/AvatarPickerModal';
+import { SettingsRow } from '../../components/SettingsRow';
 import { useColors } from '../../constants/theme';
 import { resolveAvatarSource } from '../../constants/avatarPresets';
 import { supabase } from '../../lib/supabase';
@@ -88,37 +89,10 @@ export default function ProfileScreen() {
         <Text className="text-on-surface-variant">{session?.user.email}</Text>
 
         <View className="mt-8 w-full gap-2">
-          <Pressable
-            onPress={() => router.push('/profile/namaj')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <Text className="text-on-surface">{t('sectionPrayerSettings')}</Text>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/profile/theme')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <Text className="text-on-surface">{t('themeTitle')}</Text>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/profile/language')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <Text className="text-on-surface">{t('languageLabel')}</Text>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
-
-          <Pressable
-            onPress={() => router.push('/profile/settings')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <Text className="text-on-surface">{t('sectionSettings')}</Text>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
+          <SettingsRow label={t('sectionPrayerSettings')} onPress={() => router.push('/profile/namaj')} />
+          <SettingsRow label={t('themeTitle')} onPress={() => router.push('/profile/theme')} />
+          <SettingsRow label={t('languageLabel')} onPress={() => router.push('/profile/language')} />
+          <SettingsRow label={t('sectionSettings')} onPress={() => router.push('/profile/settings')} />
         </View>
       </ScrollView>
 

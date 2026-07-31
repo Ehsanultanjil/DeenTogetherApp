@@ -4,7 +4,6 @@ import { Text } from '../../components/Text';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { AvatarGrid } from '../../components/AvatarPickerModal';
 import { AVATAR_PRESETS } from '../../constants/avatarPresets';
-import { useCompleteOnboarding } from '../../lib/hooks/useProfile';
 import { useT } from '../../lib/hooks/useT';
 
 export default function OnboardingAvatar() {
@@ -12,17 +11,13 @@ export default function OnboardingAvatar() {
   const { t } = useT();
   const { name } = useLocalSearchParams<{ name: string }>();
   const [selectedValue, setSelectedValue] = useState<string | null>(null);
-  const completeOnboarding = useCompleteOnboarding();
 
   const maleIds = AVATAR_PRESETS.filter((p) => p.id.startsWith('male-')).map((p) => p.id);
   const femaleIds = AVATAR_PRESETS.filter((p) => p.id.startsWith('female-')).map((p) => p.id);
 
-  const onFinish = () => {
+  const onContinue = () => {
     if (!selectedValue || !name) return;
-    completeOnboarding.mutate(
-      { fullName: name, avatarUrl: selectedValue },
-      { onSuccess: () => router.replace('/(tabs)') },
-    );
+    router.push({ pathname: '/onboarding/gender', params: { name, avatarUrl: selectedValue } });
   };
 
   return (
@@ -47,13 +42,11 @@ export default function OnboardingAvatar() {
 
       <View className="px-container-margin pb-8 pt-2">
         <Pressable
-          disabled={!selectedValue || completeOnboarding.isPending}
-          onPress={onFinish}
+          disabled={!selectedValue}
+          onPress={onContinue}
           className="w-full h-14 bg-primary rounded-full items-center justify-center shadow-md active:opacity-90"
         >
-          <Text className="text-on-primary text-[16px] font-bold">
-            {completeOnboarding.isPending ? t('savingLabel') : t('finishButton')}
-          </Text>
+          <Text className="text-on-primary text-[16px] font-bold">{t('continueButton')}</Text>
         </Pressable>
       </View>
     </View>

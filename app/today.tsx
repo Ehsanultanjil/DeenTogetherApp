@@ -12,24 +12,8 @@ import { usePrayerSettings } from '../lib/hooks/usePrayerSettings';
 import { useTodayPrayerLogs } from '../lib/hooks/usePrayerLogs';
 import { useTodayQuranLog } from '../lib/hooks/useQuranLog';
 import { useT } from '../lib/hooks/useT';
-import { formatTime, locationDateString, type WaqtName } from '../lib/prayerTimes';
-import type { MaterialSymbolName } from '../constants/materialSymbols';
-
-const WAQT_ICON: Record<WaqtName, MaterialSymbolName> = {
-  fajr: 'wb_twilight',
-  dhuhr: 'sunny',
-  asr: 'sunny',
-  maghrib: 'wb_sunny',
-  isha: 'bedtime',
-};
-
-const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
-  fajr: 'waqtFajr',
-  dhuhr: 'waqtDhuhr',
-  asr: 'waqtAsr',
-  maghrib: 'waqtMaghrib',
-  isha: 'waqtIsha',
-};
+import { formatTime, isJummahDay, locationDateString } from '../lib/prayerTimes';
+import { WAQT_ICON, waqtDisplayKey } from '../constants/waqt';
 
 export default function TodayPrayers() {
   const router = useRouter();
@@ -94,7 +78,7 @@ export default function TodayPrayers() {
             return (
               <PrayerCard
                 key={w.name}
-                name={t(WAQT_KEY[w.name])}
+                name={t(waqtDisplayKey(w.name, isJummahDay(times.timeZone, w.start)))}
                 timeRange={`${formatTime(w.start, times.timeZone, localeTag)} – ${formatTime(w.end, times.timeZone, localeTag)}`}
                 completed={isDone}
                 icon={WAQT_ICON[w.name]}

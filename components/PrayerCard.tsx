@@ -1,6 +1,7 @@
 import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { Icon } from './Icon';
+import { useColors } from '../constants/theme';
 import type { MaterialSymbolName } from '../constants/materialSymbols';
 
 type Props = {
@@ -13,6 +14,7 @@ type Props = {
 };
 
 export function PrayerCard({ name, timeRange, completed, icon, onToggle, disabled = false }: Props) {
+  const Colors = useColors();
   return (
     <Pressable
       onPress={onToggle}
@@ -27,7 +29,7 @@ export function PrayerCard({ name, timeRange, completed, icon, onToggle, disable
             completed ? 'bg-secondary-fixed' : 'bg-surface-container'
           }`}
         >
-          <Icon name={icon} color={completed ? '#0f5238' : '#404943'} />
+          <Icon name={icon} color={completed ? Colors.primary : Colors.onSurfaceVariant} />
         </View>
         <View>
           <Text className="text-[16px] font-bold text-on-surface">{name}</Text>

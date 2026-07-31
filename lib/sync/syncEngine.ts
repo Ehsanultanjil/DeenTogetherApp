@@ -7,11 +7,8 @@ import { applyPrayerSettingsUpdate } from '../hooks/usePrayerSettings';
 import { applyNotificationSettingsUpdate } from '../hooks/useNotificationSettings';
 import { applyFullNameUpdate } from '../hooks/useFullName';
 import { applyAvatarUpdate } from '../hooks/useAvatar';
-
-function looksLikeNetworkError(err: unknown): boolean {
-  const message = err instanceof Error ? err.message : String(err);
-  return /network|fetch|timeout|offline|failed to connect/i.test(message);
-}
+import { applyLocationUpdate } from '../../store/useLocationStore';
+import { looksLikeNetworkError } from './networkError';
 
 async function apply(action: QueuedAction): Promise<void> {
   switch (action.kind) {
@@ -27,6 +24,8 @@ async function apply(action: QueuedAction): Promise<void> {
       return applyFullNameUpdate(action.payload);
     case 'updateAvatar':
       return applyAvatarUpdate(action.payload);
+    case 'updateLocation':
+      return applyLocationUpdate(action.payload);
   }
 }
 
@@ -37,6 +36,7 @@ const INVALIDATE_KEYS: Record<QueuedAction['kind'], string[]> = {
   updateNotificationSettings: ['notificationSettings'],
   updateFullName: ['fullName'],
   updateAvatar: ['avatar', 'familyTodayStatus'],
+  updateLocation: ['familyTodayStatus', 'familyPrayerGridRaw'],
 };
 
 // Drains the offline queue FIFO — called on app launch/resume and on

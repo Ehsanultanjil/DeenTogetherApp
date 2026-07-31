@@ -21,11 +21,12 @@ export const CALC_METHOD_LABELS: Record<CalcMethodKey, string> = {
   Other: 'Other',
 };
 
-export const MADHAB_LABELS: Record<MadhabKey, string> = {
-  hanafi: 'Hanafi',
-  maliki: 'Maliki',
-  shafii: "Shafi'i",
-  hanbali: 'Hanbali',
+// Translation key per madhab — screens render via t(MADHAB_KEY[key]).
+export const MADHAB_KEY: Record<MadhabKey, 'madhabHanafi' | 'madhabMaliki' | 'madhabShafii' | 'madhabHanbali'> = {
+  hanafi: 'madhabHanafi',
+  maliki: 'madhabMaliki',
+  shafii: 'madhabShafii',
+  hanbali: 'madhabHanbali',
 };
 
 export const SAFETY_MARGIN_OPTIONS = [0, 1, 2, 3, 4, 5] as const;
@@ -183,6 +184,14 @@ export function computePrayerTimes(params: {
     duha: { start: new Date(pt.sunrise.getTime() + 20 * MIN), end: new Date(pt.dhuhr.getTime() - 10 * MIN) },
     timeZone,
   };
+}
+
+// Whether `date`'s calendar day, AT the given prayer location's own
+// timezone (not the device's), is a Friday — Dhuhr becomes Jumu'ah on
+// Friday. 'en-US' is hardcoded so the weekday string is stable regardless
+// of the user's locale setting; only the day itself is being read out of it.
+export function isJummahDay(timeZone: string, date: Date): boolean {
+  return new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date) === 'Fri';
 }
 
 export function getCurrentWaqt(windows: WaqtWindow[], now: Date = new Date()) {

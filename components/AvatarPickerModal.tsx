@@ -1,8 +1,9 @@
-import { Image, Modal, Pressable, ScrollView, View } from 'react-native';
+import { Image, Pressable, ScrollView, View } from 'react-native';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { useColors } from '../constants/theme';
 import { AVATAR_PRESETS, toAvatarPresetValue, type AvatarPresetId } from '../constants/avatarPresets';
+import { BottomSheetModal } from './BottomSheetModal';
 
 type Props = {
   visible: boolean;
@@ -65,24 +66,17 @@ export function AvatarPickerModal({
   const femaleIds = AVATAR_PRESETS.filter((p) => p.id.startsWith('female-')).map((p) => p.id);
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable className="flex-1 bg-black/30" onPress={onClose}>
-        <Pressable className="mt-auto bg-surface-container-lowest rounded-t-2xl max-h-[75%]">
-          <View className="p-4 border-b border-surface-container-low">
-            <Text className="text-[16px] font-bold text-on-surface text-center">{title}</Text>
-          </View>
-          <ScrollView contentContainerStyle={{ padding: 16, gap: 20 }}>
-            <View className="gap-3">
-              <Text className="text-[13px] font-bold text-on-surface-variant">{maleLabel}</Text>
-              <AvatarGrid ids={maleIds} selectedValue={selectedValue} onSelect={onSelect} />
-            </View>
-            <View className="gap-3">
-              <Text className="text-[13px] font-bold text-on-surface-variant">{femaleLabel}</Text>
-              <AvatarGrid ids={femaleIds} selectedValue={selectedValue} onSelect={onSelect} />
-            </View>
-          </ScrollView>
-        </Pressable>
-      </Pressable>
-    </Modal>
+    <BottomSheetModal visible={visible} onClose={onClose} title={title} sheetStyle={{ maxHeight: '75%' }}>
+      <ScrollView contentContainerStyle={{ padding: 16, gap: 20 }}>
+        <View className="gap-3">
+          <Text className="text-[13px] font-bold text-on-surface-variant">{maleLabel}</Text>
+          <AvatarGrid ids={maleIds} selectedValue={selectedValue} onSelect={onSelect} />
+        </View>
+        <View className="gap-3">
+          <Text className="text-[13px] font-bold text-on-surface-variant">{femaleLabel}</Text>
+          <AvatarGrid ids={femaleIds} selectedValue={selectedValue} onSelect={onSelect} />
+        </View>
+      </ScrollView>
+    </BottomSheetModal>
   );
 }

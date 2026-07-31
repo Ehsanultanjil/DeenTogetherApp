@@ -1,28 +1,10 @@
-import { Image, View } from 'react-native';
+import { View } from 'react-native';
 import { Text } from './Text';
 import { Icon } from './Icon';
 import { useColors } from '../constants/theme';
-import { resolveAvatarSource } from '../constants/avatarPresets';
+import { FamilyMemberHeader } from './FamilyMemberHeader';
 import type { WaqtName, WaqtVisualState } from '../lib/prayerTimes';
-import type { MaterialSymbolName } from '../constants/materialSymbols';
-
-const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-
-const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
-  fajr: 'waqtFajr',
-  dhuhr: 'waqtDhuhr',
-  asr: 'waqtAsr',
-  maghrib: 'waqtMaghrib',
-  isha: 'waqtIsha',
-};
-
-const WAQT_ICON: Record<WaqtName, MaterialSymbolName> = {
-  fajr: 'wb_twilight',
-  dhuhr: 'sunny',
-  asr: 'sunny',
-  maghrib: 'wb_sunny',
-  isha: 'bedtime',
-};
+import { WAQT_ORDER, WAQT_ICON } from '../constants/waqt';
 
 type Props = {
   name: string;
@@ -50,38 +32,18 @@ export function FamilyMemberPrayerCard({
   locationUnknownLabel = "Hasn't set a location yet",
 }: Props) {
   const Colors = useColors();
-  const avatarSource = resolveAvatarSource(avatarUri);
   const circleSize = 22;
 
   return (
     <View className="bg-surface-container-lowest p-md rounded-xl shadow-sm border border-surface-variant/10">
-      <View className="flex-row items-center justify-between">
-        <View className="flex-row items-center gap-4">
-          <View
-            style={{ width: 48, height: 48, borderRadius: 24 }}
-            className="overflow-hidden border-2 border-primary/10 bg-surface-container-high items-center justify-center"
-          >
-            {avatarSource ? (
-              <Image source={avatarSource} style={{ width: '100%', height: '100%' }} />
-            ) : (
-              <Icon name="person" color="#404943" />
-            )}
-          </View>
-          <View>
-            <Text className="font-bold text-[16px] text-on-surface">{name}</Text>
-            {role ? (
-              <View className="flex-row items-center gap-1 mt-0.5">
-                {isAdmin ? <Icon name="shield_with_heart" size={14} filled color="#0f5238" /> : null}
-                <Text className="text-[12px] text-on-surface-variant">{role}</Text>
-              </View>
-            ) : null}
-          </View>
-        </View>
-        <View className="items-end">
-          <Text className="font-bold text-primary text-[16px]">{progressLabel}</Text>
-          <Text className="text-[12px] text-on-surface-variant">{todayLabel}</Text>
-        </View>
-      </View>
+      <FamilyMemberHeader
+        name={name}
+        role={role}
+        isAdmin={isAdmin}
+        avatarUri={avatarUri}
+        progressLabel={progressLabel}
+        todayLabel={todayLabel}
+      />
 
       {waqtStates ? (
         <View className="flex-row justify-between mt-3">
@@ -105,7 +67,7 @@ export function FamilyMemberPrayerCard({
                   style={{
                     width: circleSize,
                     height: circleSize,
-                    ...(isMissed ? { backgroundColor: '#ba1a1a' } : null),
+                    ...(isMissed ? { backgroundColor: Colors.error } : null),
                   }}
                 >
                   {isDone ? (

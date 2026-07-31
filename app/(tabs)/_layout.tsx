@@ -30,7 +30,7 @@ export default function TabsLayout() {
   useSyncOnResume();
 
   useEffect(() => {
-    if (session) requestPrayerNotificationPermission();
+    if (session) requestPrayerNotificationPermission().catch(() => {});
   }, [session]);
 
   if (!session) {

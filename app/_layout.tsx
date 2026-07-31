@@ -33,6 +33,7 @@ import { useLocationPreferenceStore } from '../store/useLocationPreferenceStore'
 import { useLocationStore } from '../store/useLocationStore';
 import { useSyncQueueStore } from '../store/useSyncQueueStore';
 import { useOnboardingStatus } from '../lib/hooks/useProfile';
+import { ErrorBoundary } from '../components/ErrorBoundary';
 
 SplashScreen.preventAutoHideAsync();
 
@@ -40,10 +41,14 @@ SplashScreen.preventAutoHideAsync();
 // rather than blocking on a network round-trip — react-query's built-in
 // "offlineFirst" mode does exactly this. gcTime is bumped well past the
 // 5-minute default so persisted data isn't garbage-collected from memory
-// before it's ever used again.
+// before it's ever used again. staleTime defaults to 0, which meant every
+// query refetched on every mount/reconnect on top of useSyncOnResume.ts's
+// own manual invalidation on the same triggers — doubling up network calls
+// on every app resume. Prayer/family data doesn't change fast enough to
+// need that; a few minutes of staleness is invisible to the user.
 const queryClient = new QueryClient({
   defaultOptions: {
-    queries: { networkMode: 'offlineFirst', gcTime: 1000 * 60 * 60 * 24 },
+    queries: { networkMode: 'offlineFirst', gcTime: 1000 * 60 * 60 * 24, staleTime: 1000 * 60 * 5 },
     mutations: { networkMode: 'offlineFirst' },
   },
 });
@@ -123,7 +128,7 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
 
     if (onboardingCompleted === false) {
       if (!inOnboarding) {
-        router.replace('/onboarding/name');
+        router.replace('/onboarding/language');
         return;
       }
       reportReadyOnce();
@@ -215,8 +220,17 @@ export default function RootLayout() {
         setSession(data.session);
         setInitialized(true);
       });
-    const { data: subscription } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
+      // A second account signing in on the same device must not inherit the
+      // previous user's cached location, queued offline writes (which would
+      // just fail RLS's auth.uid() check under the new session), or cached
+      // prayer/family query data.
+      if (event === 'SIGNED_OUT') {
+        queryClient.clear();
+        useLocationStore.getState().reset();
+        useSyncQueueStore.getState().reset();
+      }
     });
     return () => subscription.subscription.unsubscribe();
   }, [setSession, setInitialized]);
@@ -258,18 +272,20 @@ export default function RootLayout() {
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
-      <SafeAreaProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{ persister: asyncStoragePersister, maxAge: 1000 * 60 * 60 * 24 }}
-          onSuccess={() => setQueryCacheRestored(true)}
-          onError={() => setQueryCacheRestored(true)}
-        >
-          <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
-          <RootNavigation onReady={() => setNavReady(true)} />
-        </PersistQueryClientProvider>
-      </SafeAreaProvider>
-    </GestureHandlerRootView>
+    <ErrorBoundary>
+      <GestureHandlerRootView style={{ flex: 1 }}>
+        <SafeAreaProvider>
+          <PersistQueryClientProvider
+            client={queryClient}
+            persistOptions={{ persister: asyncStoragePersister, maxAge: 1000 * 60 * 60 * 24 }}
+            onSuccess={() => setQueryCacheRestored(true)}
+            onError={() => setQueryCacheRestored(true)}
+          >
+            <StatusBar style={themeMode === 'dark' ? 'light' : 'dark'} />
+            <RootNavigation onReady={() => setNavReady(true)} />
+          </PersistQueryClientProvider>
+        </SafeAreaProvider>
+      </GestureHandlerRootView>
+    </ErrorBoundary>
   );
 }

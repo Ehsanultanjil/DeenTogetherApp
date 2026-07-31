@@ -1,10 +1,11 @@
 import { useMemo, useState } from 'react';
-import { Alert, ImageBackground, Pressable, ScrollView, View } from 'react-native';
+import { Alert, Pressable, ScrollView, View } from 'react-native';
 import { useTabBarHeight } from '../../lib/hooks/useTabBarHeight';
 import { Text } from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ProgressRing } from '../../components/ProgressRing';
+import { HomePrayerTimeline } from '../../components/HomePrayerTimeline';
+import { SahriIftarCountdownRow } from '../../components/SahriIftarCountdownRow';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
 import { PrayerNotificationHistoryModal } from '../../components/PrayerNotificationHistoryModal';
 import { Icon } from '../../components/Icon';
@@ -19,39 +20,15 @@ import { useTodayQuranLog } from '../../lib/hooks/useQuranLog';
 import { usePrayerNotifications } from '../../lib/hooks/usePrayerNotifications';
 import { useNotificationSettings } from '../../lib/hooks/useNotificationSettings';
 import { useCurrentFamilyId, useFamilyTodayStatus } from '../../lib/hooks/useFamily';
+import { usePeriodPause } from '../../lib/hooks/usePeriodPause';
 import { useAuthStore } from '../../store/useAuthStore';
 import { useLocationPreferenceStore } from '../../store/useLocationPreferenceStore';
 import { BANGLADESH_DISTRICTS, nearestDistrict } from '../../lib/bangladeshDistricts';
 import { useT } from '../../lib/hooks/useT';
-import {
-  computePrayerTimes,
-  formatCountdown,
-  formatTime,
-  getCurrentMakruh,
-  getCurrentWaqt,
-  locationDateString,
-  type WaqtName,
-} from '../../lib/prayerTimes';
+import { computePrayerTimes, formatTime, getCurrentWaqt, isJummahDay, locationDateString } from '../../lib/prayerTimes';
 import type { MakruhKey } from '../../lib/prayerTimes';
-import type { MaterialSymbolName } from '../../constants/materialSymbols';
-
-const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
-  fajr: 'waqtFajr',
-  dhuhr: 'waqtDhuhr',
-  asr: 'waqtAsr',
-  maghrib: 'waqtMaghrib',
-  isha: 'waqtIsha',
-};
-
-const WAQT_ICON: Record<WaqtName, MaterialSymbolName> = {
-  fajr: 'wb_twilight',
-  dhuhr: 'sunny',
-  asr: 'sunny',
-  maghrib: 'wb_sunny',
-  isha: 'bedtime',
-};
-
-const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
+import { WAQT_ORDER, WAQT_ICON, waqtDisplayKey } from '../../constants/waqt';
+import { NOTIFICATION_LOOKAHEAD_DAYS } from '../../lib/notifications/config';
 
 const MAKRUH_KEY: Record<MakruhKey, 'makruhSunrise' | 'makruhIstiwa' | 'makruhSunset'> = {
   sunrise: 'makruhSunrise',
@@ -92,7 +69,11 @@ export default function Home() {
               : districtName;
           })()
         : t('currentLocationLabel');
-  const now = useClockTick();
+  // The countdown-precision ticks live inside HomePrayerTimeline/
+  // SahriIftarCountdownRow now — everything here (day rollover, waqt-list
+  // highlighting, family status) only needs to notice a new minute, not a
+  // new second, so this screen no longer re-renders on every tick either.
+  const now = useClockTick(60_000);
   const dateString = times ? locationDateString(times.timeZone, now) : null;
   const { completed } = useTodayPrayerLogs(dateString);
   // Between midnight and real Fajr, all 5 waqts still belong to yesterday's
@@ -103,24 +84,35 @@ export default function Home() {
   const effectiveDateString = logDateString ?? dateString;
   const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
 
-  // Tomorrow's Maghrib — only needed once today's Iftar has already
-  // passed, but cheap enough to just always compute alongside today's.
-  const tomorrowTimes = useMemo(() => {
-    if (!coords) return null;
-    return computePrayerTimes({
-      latitude: coords.latitude,
-      longitude: coords.longitude,
-      date: new Date(now.getTime() + 24 * 60 * 60 * 1000),
-      calcMethod: settings.calcMethod,
-      madhab: settings.madhab,
-      safetyMarginMinutes: settings.safetyMarginMinutes,
-    });
+  // Tomorrow through NOTIFICATION_LOOKAHEAD_DAYS days out — scheduled every
+  // sync so a user who's offline or doesn't open the app for a while still
+  // has every upcoming waqt already queued in the OS alarm manager, not just
+  // today's (see usePrayerNotifications). Tomorrow's entry alone also feeds
+  // SahriIftarCountdownRow's Maghrib countdown below.
+  const upcomingDays = useMemo(() => {
+    if (!coords) return [];
+    const days = [];
+    for (let i = 1; i < NOTIFICATION_LOOKAHEAD_DAYS; i++) {
+      days.push(
+        computePrayerTimes({
+          latitude: coords.latitude,
+          longitude: coords.longitude,
+          date: new Date(now.getTime() + i * 24 * 60 * 60 * 1000),
+          calcMethod: settings.calcMethod,
+          madhab: settings.madhab,
+          safetyMarginMinutes: settings.safetyMarginMinutes,
+        }),
+      );
+    }
+    return days;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateString, coords?.latitude, coords?.longitude, settings.calcMethod, settings.madhab, settings.safetyMarginMinutes]);
+  const tomorrowTimes = upcomingDays[0] ?? null;
   const { enabled: notificationsEnabled } = useNotificationSettings();
-  usePrayerNotifications(times, dateString, completed, locale, notificationsEnabled);
+  usePrayerNotifications(times, dateString, locale, notificationsEnabled, upcomingDays);
 
   const currentWaqt = times ? getCurrentWaqt(times.windows, now).current.name : null;
+  const { isPaused, endPause } = usePeriodPause();
   const { data: currentFamilyId } = useCurrentFamilyId();
   const { data: familyStatus } = useFamilyTodayStatus(currentFamilyId ?? null, currentWaqt);
   const familyMembersExceptMe = (familyStatus ?? []).filter((m) => m.user_id !== session?.user.id);
@@ -182,35 +174,6 @@ export default function Home() {
     );
   }
 
-  const { current, remainingMs } = getCurrentWaqt(times.windows, now);
-  const currentDurationMs = current.end.getTime() - current.start.getTime();
-  const currentProgress = currentDurationMs > 0 ? (remainingMs / currentDurationMs) * 100 : 0;
-  const activeMakruh = getCurrentMakruh(times.makruh, now);
-  const makruhDurationMs = activeMakruh ? activeMakruh.end.getTime() - activeMakruh.start.getTime() : 0;
-  const makruhRemainingMs = activeMakruh ? Math.max(0, activeMakruh.end.getTime() - now.getTime()) : 0;
-  const makruhProgress = makruhDurationMs > 0 ? (makruhRemainingMs / makruhDurationMs) * 100 : 0;
-  // Between the Fajr window ending (sunrise) and Dhuhr starting, `current`
-  // above stays stuck on Fajr with remainingMs clamped to 0 (its own window
-  // already ended) — the ring would otherwise show a dead 00:00:00 "Fajr".
-  // Duha is display-only (never logged/tracked as a waqt), so it's handled
-  // entirely here rather than folded into `windows`.
-  const inDuha = !activeMakruh && now >= times.duha.start && now < times.duha.end;
-  const duhaDurationMs = times.duha.end.getTime() - times.duha.start.getTime();
-  const duhaRemainingMs = Math.max(0, times.duha.end.getTime() - now.getTime());
-  const duhaProgress = duhaDurationMs > 0 ? (duhaRemainingMs / duhaDurationMs) * 100 : 0;
-  const tomorrowFajr = times.windows[times.windows.length - 1].end;
-  // Islamic midnight (moddhorat) — midpoint of the night from Maghrib to
-  // next Fajr, not clock midnight. Isha becomes makruh to delay past this.
-  const moddhorat = new Date(times.maghrib.getTime() + (tomorrowFajr.getTime() - times.maghrib.getTime()) / 2);
-
-  const isFastingHours = now >= times.fajr && now < times.maghrib;
-  const sahriIsToday = now < times.fajr;
-  const iftarIsToday = now < times.maghrib;
-  const sahriTime = sahriIsToday ? times.fajr : tomorrowFajr;
-  const iftarTime = iftarIsToday ? times.maghrib : (tomorrowTimes?.maghrib ?? times.maghrib);
-  const countdownTarget = isFastingHours ? times.maghrib : sahriIsToday ? times.fajr : tomorrowFajr;
-  const countdownRemainingMs = Math.max(0, countdownTarget.getTime() - now.getTime());
-
   return (
     <View className="flex-1 bg-surface">
       {locationHeader}
@@ -223,96 +186,33 @@ export default function Home() {
           </Text>
         </View>
 
-        <ImageBackground
-          source={require('../../assets/backgrounds/prayer-times-bg.png')}
-          resizeMode="cover"
-          imageStyle={{
-            borderRadius: 12,
-            // Nudge the photo a little to the right within its frame. cover
-            // exactly fills the box with no slack to shift into, so the
-            // image is overscanned symmetrically first (wider than the box,
-            // centered) to create room on both sides, then translated —
-            // this way the shift can't expose a gap on either edge.
-            width: '116%',
-            left: '-6%',
-            transform: [{ translateX: 20 }],
-          }}
-          style={{
-            width: '100%',
-            height: 230,
-            borderRadius: 12,
-            marginBottom: 8,
-            padding: 16,
-            flexDirection: 'row',
-            alignItems: 'center',
-            gap: 16,
-            overflow: 'hidden',
-          }}
-        >
-          {activeMakruh ? (
-            <ProgressRing size={90} strokeWidth={9} progress={makruhProgress} color="#ff0000" trackColor="transparent">
-              <Text className="text-on-primary-container font-bold text-[13px]">{t('prohibitedTimeRingLabel')}</Text>
-              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">{formatCountdown(makruhRemainingMs, n)}</Text>
-            </ProgressRing>
-          ) : inDuha ? (
-            <ProgressRing size={90} strokeWidth={9} progress={duhaProgress} color="#a8e7c5" trackColor="transparent">
-              <Text className="text-on-primary-container font-bold text-[13px]">{t('duhaTimeRingLabel')}</Text>
-              <Text className="text-on-primary-container text-[10px] opacity-80">{t('left')}</Text>
-              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">
-                {formatCountdown(duhaRemainingMs, n)}
-              </Text>
-            </ProgressRing>
-          ) : (
-            <ProgressRing size={90} strokeWidth={9} progress={currentProgress} color="#a8e7c5" trackColor="transparent">
-              <Text className="text-on-primary-container font-bold text-[13px]">{t(WAQT_KEY[current.name])}</Text>
-              <Text className="text-on-primary-container text-[10px] opacity-80">{t('left')}</Text>
-              <Text className="text-on-primary-container text-[12px] font-bold mt-0.5">
-                {formatCountdown(remainingMs, n)}
-              </Text>
-            </ProgressRing>
-          )}
-          <View className="flex-1">
-            {times.windows.map((w, idx) => {
-              const isCurrent = w.name === current.name;
-              const prevIsCurrent = idx !== 0 && times.windows[idx - 1].name === current.name;
-              const showDivider = idx !== 0 && !isCurrent && !prevIsCurrent;
-              return (
-                <View key={w.name}>
-                  <View
-                    className={`flex-row items-center justify-between px-2.5 py-1.5 rounded-lg ${
-                      isCurrent ? 'bg-primary-fixed' : ''
-                    } ${showDivider ? 'border-t border-on-primary-container/15' : ''}`}
-                  >
-                    <Text
-                      className={`text-[13px] font-bold ${isCurrent ? 'text-on-primary-fixed' : 'text-on-primary-container'}`}
-                    >
-                      {t(WAQT_KEY[w.name])}
-                    </Text>
-                    <Text
-                      className={`text-[12px] ${isCurrent ? 'text-on-primary-fixed' : 'text-on-primary-container opacity-80'}`}
-                    >
-                      {formatTime(w.start, times.timeZone, localeTag)} – {formatTime(w.end, times.timeZone, localeTag)}
-                    </Text>
-                  </View>
-                  {w.name === 'isha' ? (
-                    <Text className="text-[10px] text-on-primary-container opacity-70 px-2.5 pt-0.5 text-right">
-                      {t('ishaMakruhNote', { time: formatTime(moddhorat, times.timeZone, localeTag) })}
-                    </Text>
-                  ) : null}
-                </View>
-              );
-            })}
-          </View>
-        </ImageBackground>
+        <HomePrayerTimeline times={times} />
 
         <View className="mb-2">
           <View className="bg-surface-container-lowest rounded-xl p-3 shadow-sm border border-surface-variant/20">
           <View className="flex-row items-center justify-between mb-3">
             <Text className="text-[13px] font-bold text-on-surface">{t('todaysPrayersTitle')}</Text>
-            <Text className="text-[11px] font-bold text-primary">
-              {t('completedFraction', { done: n(completedToday), total: n(totalPrayers) })}
-            </Text>
+            {isPaused ? (
+              <Text className="text-[11px] font-bold text-on-surface-variant">{t('periodPauseActiveLabel')}</Text>
+            ) : (
+              <Text className="text-[11px] font-bold text-primary">
+                {t('completedFraction', { done: n(completedToday), total: n(totalPrayers) })}
+              </Text>
+            )}
           </View>
+          {isPaused ? (
+            <View className="bg-surface-container rounded-xl p-4 items-center gap-2">
+              <Icon name="info" size={20} color={Colors.onSurfaceVariant} />
+              <Text className="text-[12px] text-on-surface-variant text-center">{t('periodExcusedDay')}</Text>
+              <Pressable
+                onPress={endPause}
+                className="mt-1 px-4 py-1.5 rounded-full bg-error/10 border border-error active:opacity-80"
+              >
+                <Text className="text-[11px] font-bold text-error">{t('endPeriodPause')}</Text>
+              </Pressable>
+            </View>
+          ) : (
+          <>
           <View className="flex-row items-start justify-between" style={{ position: 'relative' }}>
             <View
               className="bg-outline-variant"
@@ -347,7 +247,7 @@ export default function Home() {
                       style={{
                         width: circleSize,
                         height: circleSize,
-                        ...(isMissed ? { backgroundColor: '#ba1a1a' } : null),
+                        ...(isMissed ? { backgroundColor: Colors.error } : null),
                         ...(isCurrentWaqt
                           ? {
                               shadowColor: Colors.primary,
@@ -366,7 +266,7 @@ export default function Home() {
                               }
                             : isMissed
                               ? {
-                                  shadowColor: '#ba1a1a',
+                                  shadowColor: Colors.error,
                                   shadowOpacity: 0.3,
                                   shadowRadius: 20,
                                   shadowOffset: { width: 0, height: 0 },
@@ -393,7 +293,7 @@ export default function Home() {
                       isCurrentWaqt ? 'font-bold text-on-surface' : 'text-on-surface-variant'
                     }`}
                   >
-                    {t(WAQT_KEY[waqt])}
+                    {t(waqtDisplayKey(waqt, !!waqtWindow && isJummahDay(times.timeZone, waqtWindow.start)))}
                   </Text>
                   {isCurrentWaqt ? (
                     <View
@@ -444,6 +344,8 @@ export default function Home() {
               </Pressable>
             ) : null}
           </View>
+          </>
+          )}
           </View>
           <View
             className="bg-primary-container rounded-b-xl"
@@ -493,30 +395,7 @@ export default function Home() {
           <Text className="text-[10px] text-on-surface-variant">{t('prohibitedTimesNote')}</Text>
         </View>
 
-        <View className="flex-row bg-surface-container-lowest rounded-xl border border-surface-container-low mb-2 overflow-hidden">
-          <View className="flex-1 items-center py-3 border-r border-surface-container-low">
-            <Text className="text-[15px] font-bold text-on-surface">
-              {formatTime(sahriTime, times.timeZone, localeTag)}
-            </Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
-              {t(sahriIsToday ? 'todaysSahri' : 'nextSahri')}
-            </Text>
-          </View>
-          <View className="flex-1 items-center py-3 border-r border-surface-container-low">
-            <Text className="text-[15px] font-bold text-on-surface">
-              {formatTime(iftarTime, times.timeZone, localeTag)}
-            </Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
-              {t(iftarIsToday ? 'todaysIftar' : 'nextIftar')}
-            </Text>
-          </View>
-          <View className="flex-1 items-center py-3">
-            <Text className="text-[15px] font-bold text-on-surface">{formatCountdown(countdownRemainingMs, n)}</Text>
-            <Text className="text-[11px] text-on-surface-variant mt-1 text-center">
-              {t(isFastingHours ? 'iftarTimeLeft' : 'sahriTimeLeft')}
-            </Text>
-          </View>
-        </View>
+        <SahriIftarCountdownRow times={times} tomorrowMaghrib={tomorrowTimes?.maghrib ?? null} />
 
         <View className="mb-2">
           <View className="flex-row items-center justify-between mb-3">

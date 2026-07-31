@@ -10,7 +10,7 @@ export type MonthlyStats = {
   quranDays: number;
 };
 
-export type DayStatus = 'all' | 'some' | 'none';
+export type DayStatus = 'all' | 'some' | 'none' | 'excused';
 export type DayInfo = { status: DayStatus; quranDone: boolean };
 
 function pad(n: number) {

@@ -32,16 +32,9 @@ import { useT } from '../../lib/hooks/useT';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { usePrayerTimes } from '../../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../../lib/hooks/useClockTick';
-import { getCurrentWaqt, getWaqtVisualState, type WaqtName, type WaqtVisualState } from '../../lib/prayerTimes';
-
-const WAQT_ORDER: WaqtName[] = ['fajr', 'dhuhr', 'asr', 'maghrib', 'isha'];
-const WAQT_KEY: Record<WaqtName, 'waqtFajr' | 'waqtDhuhr' | 'waqtAsr' | 'waqtMaghrib' | 'waqtIsha'> = {
-  fajr: 'waqtFajr',
-  dhuhr: 'waqtDhuhr',
-  asr: 'waqtAsr',
-  maghrib: 'waqtMaghrib',
-  isha: 'waqtIsha',
-};
+import { getCurrentWaqt, getWaqtVisualState, isJummahDay, type WaqtName, type WaqtVisualState } from '../../lib/prayerTimes';
+import { WAQT_ORDER, waqtDisplayKey } from '../../constants/waqt';
+import { getErrorMessage } from '../../lib/getErrorMessage';
 
 function CreateFamilyPrompt() {
   const router = useRouter();
@@ -71,7 +64,7 @@ function CreateFamilyPrompt() {
         </Text>
       </Pressable>
       {createFamily.isError ? (
-        <Text className="text-error text-[13px] mb-2">{(createFamily.error as Error).message}</Text>
+        <Text className="text-error text-[13px] mb-2">{getErrorMessage(createFamily.error)}</Text>
       ) : null}
       <Pressable onPress={() => router.push('/family/join')} className="items-center py-2">
         <Text className="text-primary text-[14px] font-semibold">{t('haveInviteCode')}</Text>
@@ -86,6 +79,15 @@ export default function FamilyScreen() {
   const { t, n } = useT();
   const Colors = useColors();
   const [copied, setCopied] = useState(false);
+  // Reuses the same bottom toast the copy-code confirmation already shows —
+  // several mutations here (switch family, approve/decline request,
+  // promote+leave, delete family) previously failed with zero feedback: a
+  // dropped tap during a network blip just looked like nothing happened.
+  const [errorToast, setErrorToast] = useState<string | null>(null);
+  const showErrorToast = (err: unknown) => {
+    setErrorToast(getErrorMessage(err));
+    setTimeout(() => setErrorToast(null), 3000);
+  };
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const tabBarHeight = useTabBarHeight();
 
@@ -184,7 +186,7 @@ export default function FamilyScreen() {
             {memberships.map((m) => (
               <Pressable
                 key={m.familyId}
-                onPress={() => switchFamily.mutate(m.familyId)}
+                onPress={() => switchFamily.mutate(m.familyId, { onError: showErrorToast })}
                 className={`px-4 py-2 rounded-full border ${
                   m.familyId === currentFamilyId ? 'bg-primary border-primary' : 'bg-surface-container-lowest border-outline-variant'
                 }`}
@@ -233,13 +235,13 @@ export default function FamilyScreen() {
                 </View>
                 <View className="flex-row gap-2">
                   <Pressable
-                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: false })}
+                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: false }, { onError: showErrorToast })}
                     className="px-3 py-1.5 rounded-full bg-surface-container-high active:opacity-80"
                   >
                     <Text className="text-[12px] font-bold text-on-surface-variant">{t('declineRequest')}</Text>
                   </Pressable>
                   <Pressable
-                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: true })}
+                    onPress={() => respondToJoinRequest.mutate({ requestId: req.id, approve: true }, { onError: showErrorToast })}
                     className="px-3 py-1.5 rounded-full bg-primary-container active:opacity-80"
                   >
                     <Text className="text-[12px] font-bold text-on-primary-container">{t('approveRequest')}</Text>
@@ -280,7 +282,11 @@ export default function FamilyScreen() {
                 isAdmin={m.role === 'admin'}
                 todayLabel={t('todayLabel')}
                 waqtStates={waqtStates}
-                waqtLabel={(waqt) => t(WAQT_KEY[waqt])}
+                waqtLabel={(waqt) => {
+                  const window = grid?.windows?.find((w) => w.name === waqt);
+                  const isJummah = !!window && !!grid?.timeZone && isJummahDay(grid.timeZone, window.start);
+                  return t(waqtDisplayKey(waqt, isJummah));
+                }}
                 locationUnknownLabel={t('familyLocationUnknown')}
               />
             );
@@ -310,7 +316,7 @@ export default function FamilyScreen() {
               onPress={() =>
                 current &&
                 confirmDestructive(t('leaveFamilyConfirmTitle'), t('leaveFamilyConfirmBody'), t('leaveThisFamily'), t('cancel'), () =>
-                  leaveFamily.mutate(current.familyId),
+                  leaveFamily.mutate(current.familyId, { onError: showErrorToast }),
                 )
               }
               className="flex-row items-center gap-2 px-6 py-3 bg-error/10 border border-error rounded-full"
@@ -330,6 +336,17 @@ export default function FamilyScreen() {
         </View>
       ) : null}
 
+      {errorToast ? (
+        <View
+          style={{ position: 'absolute', bottom: tabBarHeight + 16, alignSelf: 'center' }}
+          className="bg-error px-6 py-3 rounded-full shadow-lg max-w-[90%]"
+        >
+          <Text className="text-on-error text-[14px] font-bold" numberOfLines={2}>
+            {errorToast}
+          </Text>
+        </View>
+      ) : null}
+
       {current ? (
         <FamilyDeleteModal
           visible={deleteModalOpen}
@@ -340,10 +357,13 @@ export default function FamilyScreen() {
           onPromoteAndLeave={(userId) => {
             promoteMember.mutate(
               { familyId: current.familyId, newAdminId: userId },
-              { onSuccess: () => leaveFamily.mutate(current.familyId) },
+              {
+                onSuccess: () => leaveFamily.mutate(current.familyId, { onError: showErrorToast }),
+                onError: showErrorToast,
+              },
             );
           }}
-          onDeleteEntirely={() => deleteFamily.mutate(current.familyId)}
+          onDeleteEntirely={() => deleteFamily.mutate(current.familyId, { onError: showErrorToast })}
           labels={{
             title: t('deleteFamilyModalTitle'),
             promoteAndLeave: t('promoteAndLeave'),

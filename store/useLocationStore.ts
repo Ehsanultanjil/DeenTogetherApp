@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Location from 'expo-location';
 import { supabase } from '../lib/supabase';
+import { runOrQueue } from '../lib/sync/runOrQueue';
+import { clearPersisted, readPersisted, writePersisted } from '../lib/storePersistence';
 
 export type Coords = { latitude: number; longitude: number };
 export type LocationStatus = 'loading' | 'granted' | 'denied' | 'error';
@@ -12,6 +13,14 @@ const CACHE_KEY = 'deentogether.lastCoords';
 // the update entirely so prayer times/notifications don't needlessly
 // recompute/reschedule off of ordinary GPS jitter.
 const MOVED_THRESHOLD_METERS = 500;
+
+export async function applyLocationUpdate(payload: { userId: string; latitude: number; longitude: number }) {
+  const { error } = await supabase
+    .from('profiles')
+    .update({ last_latitude: payload.latitude, last_longitude: payload.longitude })
+    .eq('id', payload.userId);
+  if (error) throw error;
+}
 
 function haversineMeters(a: Coords, b: Coords): number {
   const R = 6371000;
@@ -36,6 +45,9 @@ type LocationState = {
   // last coords saved server-side for a fresh install). Never throws —
   // failures just leave whatever coords/status were already there.
   refresh: (userId: string | undefined) => Promise<void>;
+  // Called on sign-out so a second account on the same device doesn't
+  // start out showing the previous user's last-known coords.
+  reset: () => void;
 };
 
 export const useLocationStore = create<LocationState>((set, get) => ({
@@ -44,16 +56,9 @@ export const useLocationStore = create<LocationState>((set, get) => ({
   hydrated: false,
 
   hydrate: async () => {
-    try {
-      const raw = await AsyncStorage.getItem(CACHE_KEY);
-      if (raw) {
-        set({ coords: JSON.parse(raw) as Coords, status: 'granted' });
-      }
-    } catch {
-      // Fall through to the normal GPS/permission flow.
-    } finally {
-      set({ hydrated: true });
-    }
+    const cached = await readPersisted(CACHE_KEY, (raw) => JSON.parse(raw) as Coords);
+    if (cached) set({ coords: cached, status: 'granted' });
+    set({ hydrated: true });
   },
 
   setManualCoords: (coords, userId) => {
@@ -62,12 +67,11 @@ export const useLocationStore = create<LocationState>((set, get) => ({
     // member's OWN last-known location (see get_family_prayer_grid) — GPS
     // coords sync to profiles in refresh() below, but manual-district picks
     // never did, leaving that member's server-side location stale/null.
+    // Routed through the same offline queue every other mutation uses so a
+    // failed/offline write gets retried instead of silently dropped.
     if (userId) {
-      supabase
-        .from('profiles')
-        .update({ last_latitude: coords.latitude, last_longitude: coords.longitude })
-        .eq('id', userId)
-        .then(() => {}, () => {});
+      const payload = { userId, latitude: coords.latitude, longitude: coords.longitude };
+      runOrQueue({ kind: 'updateLocation', payload, run: () => applyLocationUpdate(payload) }).catch(() => {});
     }
   },
 
@@ -110,15 +114,18 @@ export const useLocationStore = create<LocationState>((set, get) => ({
       }
 
       set({ coords: next, status: 'granted' });
-      AsyncStorage.setItem(CACHE_KEY, JSON.stringify(next)).catch(() => {});
+      writePersisted(CACHE_KEY, JSON.stringify(next));
       if (userId) {
-        await supabase
-          .from('profiles')
-          .update({ last_latitude: next.latitude, last_longitude: next.longitude })
-          .eq('id', userId);
+        const payload = { userId, latitude: next.latitude, longitude: next.longitude };
+        await runOrQueue({ kind: 'updateLocation', payload, run: () => applyLocationUpdate(payload) });
       }
     } catch {
       if (!get().coords) set({ status: 'error' });
     }
+  },
+
+  reset: () => {
+    set({ coords: null, status: 'loading' });
+    clearPersisted(CACHE_KEY);
   },
 }));

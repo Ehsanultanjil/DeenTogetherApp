@@ -1,11 +1,14 @@
 import { useState } from 'react';
-import { Modal, Pressable, View } from 'react-native';
+import { Pressable, View } from 'react-native';
 import { Text } from './Text';
 import { TextInput } from './TextInput';
 import { useT } from '../lib/hooks/useT';
 import { useKeyboardHeight } from '../lib/hooks/useKeyboardHeight';
 import { useAuthStore } from '../store/useAuthStore';
 import { useDeleteAccount } from '../lib/hooks/useAccount';
+import { supabase } from '../lib/supabase';
+import { getErrorMessage } from '../lib/getErrorMessage';
+import { BottomSheetModal } from './BottomSheetModal';
 
 type Props = {
   visible: boolean;
@@ -35,41 +38,44 @@ export function DeleteAccountModal({ visible, onClose }: Props) {
     if (!matches) return;
     setError(null);
     deleteAccount.mutate(undefined, {
-      onError: (e) => setError((e as Error).message),
+      // The account/profile row is gone server-side at this point — without
+      // signing out here, the local session token stays "valid" client-side
+      // until some future request happens to 401.
+      onSuccess: () => supabase.auth.signOut(),
+      onError: (e) => setError(getErrorMessage(e)),
     });
   };
 
   return (
-    <Modal visible={visible} animationType="slide" transparent onRequestClose={close}>
-      <Pressable className="flex-1 bg-black/30 justify-end" onPress={close}>
+    <BottomSheetModal
+      visible={visible}
+      onClose={close}
+      title={t('deleteAccountConfirmTitle')}
+      titleClassName="text-[16px] font-bold text-error text-center"
+      sheetStyle={{ marginBottom: keyboardHeight }}
+    >
+      <View className="p-6">
+        <Text className="text-on-surface-variant text-[13px] text-center mb-4">{t('deleteAccountConfirmBody')}</Text>
+        <Text className="text-on-surface-variant text-[12px] mb-2">{t('deleteAccountTypeEmailHint', { email: email ?? '' })}</Text>
+        <TextInput
+          value={typed}
+          onChangeText={setTyped}
+          placeholder={email ?? ''}
+          autoCapitalize="none"
+          keyboardType="email-address"
+          className="h-14 px-4 rounded-xl border border-outline-variant bg-surface text-on-surface"
+        />
+        {error ? <Text className="text-error text-[13px] mt-3">{error}</Text> : null}
         <Pressable
-          className="bg-surface-container-lowest rounded-t-2xl p-6"
-          style={{ marginBottom: keyboardHeight }}
-          onPress={(e) => e.stopPropagation()}
+          onPress={onConfirm}
+          disabled={!matches || deleteAccount.isPending}
+          className="w-full h-14 bg-error rounded-full items-center justify-center active:opacity-90 mt-4"
         >
-          <Text className="text-[16px] font-bold text-error text-center mb-2">{t('deleteAccountConfirmTitle')}</Text>
-          <Text className="text-on-surface-variant text-[13px] text-center mb-4">{t('deleteAccountConfirmBody')}</Text>
-          <Text className="text-on-surface-variant text-[12px] mb-2">{t('deleteAccountTypeEmailHint', { email: email ?? '' })}</Text>
-          <TextInput
-            value={typed}
-            onChangeText={setTyped}
-            placeholder={email ?? ''}
-            autoCapitalize="none"
-            keyboardType="email-address"
-            className="h-14 px-4 rounded-xl border border-outline-variant bg-surface text-on-surface"
-          />
-          {error ? <Text className="text-error text-[13px] mt-3">{error}</Text> : null}
-          <Pressable
-            onPress={onConfirm}
-            disabled={!matches || deleteAccount.isPending}
-            className="w-full h-14 bg-error rounded-full items-center justify-center active:opacity-90 mt-4"
-          >
-            <Text className="text-on-error font-bold text-[16px]">
-              {deleteAccount.isPending ? t('deletingAccount') : t('deleteAccountConfirmButton')}
-            </Text>
-          </Pressable>
+          <Text className="text-on-error font-bold text-[16px]">
+            {deleteAccount.isPending ? t('deletingAccount') : t('deleteAccountConfirmButton')}
+          </Text>
         </Pressable>
-      </Pressable>
-    </Modal>
+      </View>
+    </BottomSheetModal>
   );
 }

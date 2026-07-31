@@ -4,12 +4,13 @@ import { Text } from '../../components/Text';
 import { TopAppBar } from '../../components/TopAppBar';
 import { Icon } from '../../components/Icon';
 import { OptionPickerModal } from '../../components/OptionPickerModal';
+import { SettingsRow } from '../../components/SettingsRow';
 import { useColors } from '../../constants/theme';
 import { usePrayerSettings } from '../../lib/hooks/usePrayerSettings';
 import { useT } from '../../lib/hooks/useT';
 import {
   CALC_METHOD_LABELS,
-  MADHAB_LABELS,
+  MADHAB_KEY,
   SAFETY_MARGIN_OPTIONS,
   type CalcMethodKey,
   type MadhabKey,
@@ -17,7 +18,7 @@ import {
 } from '../../lib/prayerTimes';
 
 const CALC_METHOD_OPTIONS = Object.entries(CALC_METHOD_LABELS).map(([key, label]) => ({ key, label }));
-const MADHAB_OPTIONS = Object.entries(MADHAB_LABELS).map(([key, label]) => ({ key, label }));
+const MADHAB_KEYS = Object.keys(MADHAB_KEY) as MadhabKey[];
 
 const SAFETY_MARGIN_KEY: Record<
   SafetyMarginMinutes,
@@ -41,33 +42,23 @@ export default function NamajSettingsScreen() {
     SAFETY_MARGIN_OPTIONS.map((m) => [m, t(SAFETY_MARGIN_KEY[m])]),
   ) as Record<SafetyMarginMinutes, string>;
   const SAFETY_MARGIN_PICKER_OPTIONS = SAFETY_MARGIN_OPTIONS.map((m) => ({ key: String(m), label: SAFETY_MARGIN_LABELS[m] }));
+  const MADHAB_OPTIONS = MADHAB_KEYS.map((key) => ({ key, label: t(MADHAB_KEY[key]) }));
 
   return (
     <View className="flex-1 bg-surface">
       <TopAppBar title={t('sectionPrayerSettings')} />
       <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingBottom: 32, paddingTop: 16 }}>
         <View className="gap-2">
-          <Pressable
+          <SettingsRow
+            label={t('prayerCalcMethod')}
+            subtitle={CALC_METHOD_LABELS[settings.calcMethod]}
             onPress={() => setPickerOpen('calcMethod')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <View>
-              <Text className="text-on-surface">{t('prayerCalcMethod')}</Text>
-              <Text className="text-on-surface-variant text-[12px] mt-0.5">{CALC_METHOD_LABELS[settings.calcMethod]}</Text>
-            </View>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
-
-          <Pressable
+          />
+          <SettingsRow
+            label={t('madhabLabel')}
+            subtitle={t(MADHAB_KEY[settings.madhab])}
             onPress={() => setPickerOpen('madhab')}
-            className="w-full p-4 bg-surface-container-lowest rounded-xl border border-surface-variant flex-row justify-between items-center active:opacity-70"
-          >
-            <View>
-              <Text className="text-on-surface">{t('madhabLabel')}</Text>
-              <Text className="text-on-surface-variant text-[12px] mt-0.5">{MADHAB_LABELS[settings.madhab]}</Text>
-            </View>
-            <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
-          </Pressable>
+          />
 
           <Pressable
             onPress={() => setPickerOpen('safetyMargin')}

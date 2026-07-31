@@ -1,6 +1,10 @@
+import { useEffect } from 'react';
 import { View, type ViewStyle } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, { Easing, useAnimatedProps, useSharedValue, withTiming } from 'react-native-reanimated';
 import { useColors } from '../constants/theme';
+
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 type Props = {
   size?: number;
@@ -26,8 +30,22 @@ export function ProgressRing({
   const resolvedTrackColor = trackColor ?? Colors.surfaceContainerHigh;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const offset = circumference - (circumference * Math.min(Math.max(progress, 0), 100)) / 100;
   const center = size / 2;
+
+  // Driving strokeDashoffset off a shared value/worklet instead of a plain
+  // prop means the parent's per-second re-render (Home's countdown ticker)
+  // no longer forces this SVG through React's reconciler each tick — the
+  // stroke updates on the UI thread, and animates smoothly between values
+  // instead of snapping.
+  const progressValue = useSharedValue(progress);
+  useEffect(() => {
+    progressValue.value = withTiming(progress, { duration: 300, easing: Easing.linear });
+  }, [progress, progressValue]);
+
+  const animatedProps = useAnimatedProps(() => {
+    const clamped = Math.min(Math.max(progressValue.value, 0), 100);
+    return { strokeDashoffset: circumference - (circumference * clamped) / 100 };
+  }, [circumference]);
 
   return (
     <View style={[{ width: size, height: size }, style]}>
@@ -40,7 +58,7 @@ export function ProgressRing({
           strokeWidth={strokeWidth}
           fill="transparent"
         />
-        <Circle
+        <AnimatedCircle
           cx={center}
           cy={center}
           r={radius}
@@ -49,7 +67,7 @@ export function ProgressRing({
           fill="transparent"
           strokeLinecap="round"
           strokeDasharray={circumference}
-          strokeDashoffset={offset}
+          animatedProps={animatedProps}
         />
       </Svg>
       {children ? (
