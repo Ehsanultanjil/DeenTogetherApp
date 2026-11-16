@@ -1,10 +1,12 @@
 import { useState } from 'react';
 import { Pressable, ScrollView, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Text } from './Text';
 import { TopAppBar } from './TopAppBar';
 import { CalendarDayCell } from './CalendarDayCell';
 import { Icon } from './Icon';
 import { useColors } from '../constants/theme';
+import { useAuthStore } from '../store/useAuthStore';
 import { useMonthlyDayStatus, type DayStatus } from '../lib/hooks/useMonthlyStats';
 import { useDayPrayerLogs } from '../lib/hooks/useDayPrayerLogs';
 import { useOwnGender, usePeriodPause, useAllPeriodPauses, isDateStringInAnyPause } from '../lib/hooks/usePeriodPause';
@@ -31,6 +33,8 @@ type Props = {
 // previously ~200 lines duplicated line-for-line between the two (down to
 // the same off-scale paddingTop and hardcoded status colors in both).
 export function MonthCalendarGrid({ title, targetUserId, contentPaddingBottom, onSeeMonthStats }: Props) {
+  const router = useRouter();
+  const ownUserId = useAuthStore((s) => s.session?.user.id);
   const { t, n, localeTag } = useT();
   const Colors = useColors();
   const DAY_STATUS_COLOR: Record<DayStatus, string> = {
@@ -242,8 +246,29 @@ export function MonthCalendarGrid({ title, targetUserId, contentPaddingBottom, o
           </View>
         </View>
 
+        {!ownUserId && isOwnCalendar ? (
+          <Pressable
+            onPress={() => router.push('/login')}
+            className="flex-row items-center justify-between bg-primary/10 rounded-xl p-4 border border-primary/20 mb-4 active:opacity-80"
+          >
+            <View className="flex-row items-center gap-3 flex-1 pr-2">
+              <Icon name="lock" size={20} color={Colors.primary} />
+              <Text className="text-[13px] font-semibold text-primary flex-1">
+                {t('calendarGuestNote')}
+              </Text>
+            </View>
+            <Text className="text-[13px] font-bold text-primary">{t('signInButton')}</Text>
+          </Pressable>
+        ) : null}
+
         <Pressable
-          onPress={() => onSeeMonthStats(viewYear, viewMonth)}
+          onPress={() => {
+            if (!ownUserId && isOwnCalendar) {
+              router.push('/login');
+              return;
+            }
+            onSeeMonthStats(viewYear, viewMonth);
+          }}
           className="flex-row items-center justify-between bg-surface-container-lowest rounded-xl p-4 shadow-sm border border-surface-container-low active:opacity-80"
         >
           <Text className="text-[14px] font-bold text-on-surface">{t('seeMonthStats')}</Text>

@@ -7,7 +7,9 @@ import { ProgressRing } from '../components/ProgressRing';
 import { PrayerCard } from '../components/PrayerCard';
 import { Icon } from '../components/Icon';
 import { DailyHadithPopup } from '../components/DailyHadithPopup';
+import { LoginPromptModal } from '../components/LoginPromptModal';
 import { useColors } from '../constants/theme';
+import { useAuthStore } from '../store/useAuthStore';
 import { usePrayerTimes } from '../lib/hooks/usePrayerTimes';
 import { useClockTick } from '../lib/hooks/useClockTick';
 import { usePrayerSettings } from '../lib/hooks/usePrayerSettings';
@@ -20,6 +22,7 @@ import { WAQT_ICON, waqtDisplayKey } from '../constants/waqt';
 
 export default function TodayPrayers() {
   const router = useRouter();
+  const session = useAuthStore((s) => s.session);
   const { t, n, localeTag } = useT();
   const Colors = useColors();
   const { settings } = usePrayerSettings();
@@ -32,6 +35,7 @@ export default function TodayPrayers() {
   const { completed, toggle } = useTodayPrayerLogs(effectiveDateString);
   const { completed: quranCompleted, toggle: toggleQuran } = useTodayQuranLog(effectiveDateString);
   const [hadithOpen, setHadithOpen] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const todaysHadith = hadithForDate(effectiveDateString ?? '');
 
   const completedCount = Object.values(completed).filter(Boolean).length;
@@ -87,8 +91,15 @@ export default function TodayPrayers() {
                 timeRange={`${formatTime(w.start, times.timeZone, localeTag)} – ${formatTime(w.end, times.timeZone, localeTag)}`}
                 completed={isDone}
                 icon={WAQT_ICON[w.name]}
-                onToggle={() => toggle(w.name, !isDone)}
-                disabled={now < w.start}
+                onToggle={() => {
+                  if (!session) {
+                    setLoginPromptOpen(true);
+                    return;
+                  }
+                  toggle(w.name, !isDone);
+                }}
+                disabled={session ? now < w.start : false}
+                requiresLogin={!session}
               />
             );
           })}
@@ -100,7 +111,14 @@ export default function TodayPrayers() {
             timeRange={t('quranAnytimeLabel')}
             completed={quranCompleted}
             icon="menu_book"
-            onToggle={() => toggleQuran(!quranCompleted)}
+            onToggle={() => {
+              if (!session) {
+                setLoginPromptOpen(true);
+                return;
+              }
+              toggleQuran(!quranCompleted);
+            }}
+            requiresLogin={!session}
           />
         </View>
 
@@ -114,18 +132,10 @@ export default function TodayPrayers() {
           </View>
           <Icon name="chevron_right" color={Colors.onSurfaceVariant} />
         </Pressable>
-
-        <View className="mt-8">
-          <Pressable
-            onPress={() => router.back()}
-            className="w-full h-14 bg-primary rounded-full items-center justify-center shadow-lg active:opacity-90"
-          >
-            <Text className="text-on-primary font-bold text-[16px]">{t('done')}</Text>
-          </Pressable>
-          <Text className="text-center text-[12px] text-on-surface-variant mt-4">{t('savedInstantly')}</Text>
-        </View>
       </ScrollView>
+
       <DailyHadithPopup visible={hadithOpen} hadith={todaysHadith} onDismiss={() => setHadithOpen(false)} />
+      <LoginPromptModal visible={loginPromptOpen} onClose={() => setLoginPromptOpen(false)} />
     </View>
   );
 }

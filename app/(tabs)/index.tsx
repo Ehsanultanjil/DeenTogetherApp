@@ -5,10 +5,12 @@ import { Text } from '../../components/Text';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HomePrayerTimeline } from '../../components/HomePrayerTimeline';
+import { HomeSpeedDial } from '../../components/HomeSpeedDial';
 import { SahriIftarCountdownRow } from '../../components/SahriIftarCountdownRow';
 import { FamilyMemberRow } from '../../components/FamilyMemberRow';
 import { PrayerNotificationHistoryModal } from '../../components/PrayerNotificationHistoryModal';
 import { DailyHadithPopup } from '../../components/DailyHadithPopup';
+import { LoginPromptModal } from '../../components/LoginPromptModal';
 import { Icon } from '../../components/Icon';
 import { LocationPicker } from '../../components/LocationPicker';
 import { useColors } from '../../constants/theme';
@@ -48,6 +50,7 @@ export default function Home() {
   const tabBarHeight = useTabBarHeight();
   const [locationPickerOpen, setLocationPickerOpen] = useState(false);
   const [notificationHistoryOpen, setNotificationHistoryOpen] = useState(false);
+  const [loginPromptOpen, setLoginPromptOpen] = useState(false);
   const locationPreference = useLocationPreferenceStore((s) => s.preference);
   const { settings } = usePrayerSettings();
   const { times, locationStatus, coords, logDateString } = usePrayerTimes(settings);
@@ -117,8 +120,8 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dateString, coords?.latitude, coords?.longitude, settings.calcMethod, settings.madhab, settings.safetyMarginMinutes]);
   const tomorrowTimes = upcomingDays[0] ?? null;
-  const { enabled: notificationsEnabled } = useNotificationSettings();
-  usePrayerNotifications(times, dateString, locale, notificationsEnabled, upcomingDays);
+  const { enabled: notificationsEnabled, waqtPrefs } = useNotificationSettings();
+  usePrayerNotifications(times, dateString, locale, notificationsEnabled, upcomingDays, waqtPrefs);
 
   const currentWaqt = times ? getCurrentWaqt(times.windows, now).current.name : null;
   const { isPaused, endPause } = usePeriodPause();
@@ -325,7 +328,13 @@ export default function Home() {
           </View>
           <View className="flex-row gap-2 mt-3">
             <Pressable
-              onPress={() => toggleQuran(!quranCompleted)}
+              onPress={() => {
+                if (!session) {
+                  setLoginPromptOpen(true);
+                  return;
+                }
+                toggleQuran(!quranCompleted);
+              }}
               className={`flex-1 rounded-full px-3 py-2 flex-row items-center justify-center gap-1.5 active:opacity-80 ${
                 quranCompleted ? 'bg-primary-container' : 'bg-surface-container border border-outline-variant'
               }`}
@@ -335,7 +344,7 @@ export default function Home() {
                 {t('quranLabel')}
               </Text>
               <Icon
-                name={quranCompleted ? 'check_circle' : 'radio_button_unchecked'}
+                name={quranCompleted ? 'check_circle' : !session ? 'lock' : 'radio_button_unchecked'}
                 filled={quranCompleted}
                 size={13}
                 color={quranCompleted ? '#ffffff' : Colors.outlineVariant}
@@ -343,13 +352,23 @@ export default function Home() {
             </Pressable>
             {currentWaqt ? (
               <Pressable
-                onPress={() => router.push('/today')}
-                className="flex-1 bg-primary-fixed rounded-full px-2 py-2 flex-row items-center justify-center gap-1"
+                onPress={() => {
+                  if (!session) {
+                    setLoginPromptOpen(true);
+                    return;
+                  }
+                  router.push('/today');
+                }}
+                className="flex-1 bg-primary-fixed rounded-full px-2 py-2 flex-row items-center justify-center gap-1 active:opacity-90"
               >
                 <Text className="text-[10px] font-bold text-on-primary-fixed" numberOfLines={1}>
                   {t('updatePrayerCta')}
                 </Text>
-                <Icon name="chevron_right" size={13} color={Colors.onPrimaryFixed} />
+                <Icon
+                  name={!session ? 'lock' : 'chevron_right'}
+                  size={13}
+                  color={Colors.onPrimaryFixed}
+                />
               </Pressable>
             ) : null}
           </View>
@@ -413,7 +432,23 @@ export default function Home() {
               <Text className="text-primary text-[14px] font-semibold">{t('viewAll')}</Text>
             </Pressable>
           </View>
-          {!currentFamilyId ? (
+          {!session ? (
+            <Pressable
+              onPress={() => router.push('/(tabs)/family')}
+              className="bg-surface-container-lowest rounded-xl p-4 border border-surface-variant/20 flex-row items-center justify-between active:opacity-90"
+            >
+              <View className="flex-row items-center gap-3 flex-1 pr-2">
+                <View className="w-10 h-10 rounded-full bg-primary/10 items-center justify-center">
+                  <Icon name="groups" color={Colors.primary} size={20} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[14px] font-bold text-on-surface">{t('familyGuestTitle')}</Text>
+                  <Text className="text-[12px] text-on-surface-variant" numberOfLines={1}>{t('familyGuestSubtitle')}</Text>
+                </View>
+              </View>
+              <Icon name="chevron_right" size={18} color={Colors.onSurfaceVariant} />
+            </Pressable>
+          ) : !currentFamilyId ? (
             <Pressable
               onPress={() => router.push('/(tabs)/family')}
               className="bg-surface-container-lowest rounded-xl p-4 border border-surface-variant/20 items-center active:opacity-90"
@@ -449,13 +484,7 @@ export default function Home() {
         </View>
       </ScrollView>
 
-      <Pressable
-        onPress={() => router.push('/today')}
-        style={{ position: 'absolute', bottom: tabBarHeight + 16, right: 24 }}
-        className="w-14 h-14 bg-primary rounded-full shadow-lg items-center justify-center active:opacity-90"
-      >
-        <Icon name="add" color="#ffffff" />
-      </Pressable>
+      <HomeSpeedDial bottomOffset={tabBarHeight + 16} />
       <LocationPicker visible={locationPickerOpen} onClose={() => setLocationPickerOpen(false)} />
       <PrayerNotificationHistoryModal
         visible={notificationHistoryOpen}
@@ -465,6 +494,7 @@ export default function Home() {
         now={now}
       />
       <DailyHadithPopup visible={hadithPopupVisible} hadith={todaysHadith} onDismiss={dismissHadithPopup} />
+      <LoginPromptModal visible={loginPromptOpen} onClose={() => setLoginPromptOpen(false)} />
     </View>
   );
 }

@@ -75,13 +75,8 @@ async function syncNotifications(
   dateString: string,
   locale: Locale,
   enabled: boolean,
-  // Full computed days after today (tomorrow, day-after, ...), when known —
-  // scheduled alongside today's remaining waqts so a user who doesn't
-  // reopen the app for several days (offline, forgot, phone off) still has
-  // every waqt already queued in the OS alarm manager, not just tomorrow's
-  // Fajr. Identifiers are date-scoped (see notificationIdFor) so these can
-  // never collide with today's.
   upcomingDays: DayPrayerTimes[],
+  waqtPrefs?: Record<WaqtName, boolean>,
 ) {
   try {
     if (!enabled) {
@@ -100,7 +95,7 @@ async function syncNotifications(
       presented
         .filter((notif) => {
           const data = notif.request.content.data as { waqt?: WaqtName } | undefined;
-          return data?.waqt && data.waqt !== currentWaqt;
+          return data?.waqt && (data.waqt !== currentWaqt || (waqtPrefs && waqtPrefs[data.waqt] === false));
         })
         .map((notif) => Notifications.dismissNotificationAsync(notif.request.identifier).catch(() => {})),
     );
@@ -115,10 +110,12 @@ async function syncNotifications(
       const w = times.windows[i];
       if (w.start <= now) continue; // already fired or in the past — leave alone
       const identifier = notificationIdFor(w.name, dateString);
-      // Push notifications only ever announce a waqt starting — no "missed"
-      // line. (The in-app notification history modal still shows missed
-      // status separately; that's a distinct read of past state, not this
-      // push content.)
+      if (waqtPrefs && waqtPrefs[w.name] === false) {
+        tasks.push(async () => {
+          await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+        });
+        continue;
+      }
       const body = startedLine(w.name, locale, isJummahDay(times.timeZone, w.start));
       tasks.push(async () => {
         await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
@@ -135,6 +132,12 @@ async function syncNotifications(
       for (const w of day.windows) {
         if (w.start <= now) continue;
         const identifier = notificationIdFor(w.name, dayDateString);
+        if (waqtPrefs && waqtPrefs[w.name] === false) {
+          tasks.push(async () => {
+            await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
+          });
+          continue;
+        }
         const body = startedLine(w.name, locale, isJummahDay(day.timeZone, w.start));
         tasks.push(async () => {
           await Notifications.cancelScheduledNotificationAsync(identifier).catch(() => {});
@@ -158,23 +161,18 @@ export function usePrayerNotifications(
   dateString: string | null,
   locale: Locale,
   enabled: boolean,
-  // Full computed future days (tomorrow, day-after, ...), if the caller has
-  // them — optional so existing behavior (today-only scheduling) is
-  // preserved when omitted. Scheduling several days ahead every sync means a
-  // user who's offline or hasn't opened the app in a few days still has
-  // upcoming waqts already queued in the OS alarm manager.
   upcomingDays: DayPrayerTimes[] = [],
+  waqtPrefs?: Record<WaqtName, boolean>,
 ) {
   const lastRun = useRef(0);
-  // `times` is a fresh object every ~60s (usePrayerTimes' internal clock
-  // tick), but its actual schedule-relevant content only changes once a
-  // day. Read the latest value via ref instead of depending on it directly,
-  // so this doesn't re-sync (cancel + reschedule 5 notifications) every
-  // minute the app happens to be open.
   const timesRef = useRef(times);
   timesRef.current = times;
   const upcomingDaysRef = useRef(upcomingDays);
   upcomingDaysRef.current = upcomingDays;
+  const waqtPrefsRef = useRef(waqtPrefs);
+  waqtPrefsRef.current = waqtPrefs;
+
+  const waqtPrefsKey = JSON.stringify(waqtPrefs);
 
   useEffect(() => {
     ensureSetup().catch(() => {});
@@ -182,9 +180,9 @@ export function usePrayerNotifications(
 
   useEffect(() => {
     if (!timesRef.current || !dateString) return;
-    syncNotifications(timesRef.current, dateString, locale, enabled, upcomingDaysRef.current);
+    syncNotifications(timesRef.current, dateString, locale, enabled, upcomingDaysRef.current, waqtPrefsRef.current);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [dateString, locale, enabled]);
+  }, [dateString, locale, enabled, waqtPrefsKey]);
 
   useEffect(() => {
     const sub = AppState.addEventListener('change', (state) => {
@@ -192,8 +190,8 @@ export function usePrayerNotifications(
       const now = Date.now();
       if (now - lastRun.current < 5000) return; // avoid thrashing on rapid fg/bg
       lastRun.current = now;
-      syncNotifications(timesRef.current, dateString, locale, enabled, upcomingDaysRef.current);
+      syncNotifications(timesRef.current, dateString, locale, enabled, upcomingDaysRef.current, waqtPrefsRef.current);
     });
     return () => sub.remove();
-  }, [dateString, locale, enabled]);
+  }, [dateString, locale, enabled, waqtPrefsKey]);
 }

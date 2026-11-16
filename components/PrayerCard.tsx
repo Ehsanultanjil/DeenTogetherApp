@@ -11,9 +11,18 @@ type Props = {
   icon: MaterialSymbolName;
   onToggle: () => void;
   disabled?: boolean;
+  requiresLogin?: boolean;
 };
 
-export function PrayerCard({ name, timeRange, completed, icon, onToggle, disabled = false }: Props) {
+export function PrayerCard({
+  name,
+  timeRange,
+  completed,
+  icon,
+  onToggle,
+  disabled = false,
+  requiresLogin = false,
+}: Props) {
   const Colors = useColors();
   return (
     <Pressable
@@ -38,10 +47,18 @@ export function PrayerCard({ name, timeRange, completed, icon, onToggle, disable
       </View>
       <View
         className={`w-8 h-8 rounded-full items-center justify-center ${
-          completed ? 'bg-primary' : 'border-2 border-outline-variant'
+          completed
+            ? 'bg-primary'
+            : requiresLogin
+              ? 'bg-surface-container border border-outline-variant/60'
+              : 'border-2 border-outline-variant'
         }`}
       >
-        {completed ? <Icon name="check" size={18} color="#ffffff" /> : null}
+        {completed ? (
+          <Icon name="check" size={18} color="#ffffff" />
+        ) : requiresLogin ? (
+          <Icon name="lock" size={16} color={Colors.onSurfaceVariant} />
+        ) : null}
       </View>
     </Pressable>
   );

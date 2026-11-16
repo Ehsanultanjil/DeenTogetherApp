@@ -26,7 +26,9 @@ export function useLocationName(coords: Coords | null) {
         const raw = await AsyncStorage.getItem(CACHE_KEY);
         if (raw) {
           const cached = JSON.parse(raw) as { key: string; place: PlaceName };
-          if (cached.key === key && !cancelled) setPlace(cached.place);
+          if (cached.place && !cancelled) {
+            setPlace(cached.place);
+          }
         }
       } catch {
         // ignore — fall through to a fresh lookup

@@ -8,6 +8,7 @@ import { useNotificationSettings } from '../lib/hooks/useNotificationSettings';
 import { requestPrayerNotificationPermission } from '../lib/hooks/usePrayerNotifications';
 import { useT } from '../lib/hooks/useT';
 import { BottomSheetModal } from './BottomSheetModal';
+import { WAQT_ORDER, WAQT_ICON, waqtDisplayKey } from '../constants/waqt';
 
 type Props = {
   visible: boolean;
@@ -17,7 +18,7 @@ type Props = {
 export function NotificationSettingsModal({ visible, onClose }: Props) {
   const { t } = useT();
   const Colors = useColors();
-  const { enabled, setEnabled } = useNotificationSettings();
+  const { enabled, setEnabled, waqtPrefs, toggleWaqt } = useNotificationSettings();
   const [osGranted, setOsGranted] = useState<boolean | null>(null);
 
   const refreshPermission = async () => {
@@ -52,7 +53,7 @@ export function NotificationSettingsModal({ visible, onClose }: Props) {
       visible={visible}
       onClose={onClose}
       title={t('notificationSettingsTitle')}
-      sheetStyle={{ maxHeight: '80%' }}
+      sheetStyle={{ maxHeight: '85%' }}
     >
       <ScrollView className="px-gutter" contentContainerStyle={{ paddingBottom: 32, paddingTop: 16 }}>
         <View className="w-full p-4 bg-surface rounded-xl border border-surface-variant mb-3">
@@ -67,6 +68,47 @@ export function NotificationSettingsModal({ visible, onClose }: Props) {
               trackColor={{ false: Colors.outlineVariant, true: Colors.primary }}
               thumbColor="#ffffff"
             />
+          </View>
+        </View>
+
+        {/* Individual Waqt Notifications */}
+        <View className="w-full p-4 bg-surface rounded-xl border border-surface-variant mb-3">
+          <Text className="text-on-surface font-semibold mb-1">{t('waqtNotificationsTitle')}</Text>
+          <Text className="text-on-surface-variant text-[12px] mb-3">{t('waqtNotificationsSubtitle')}</Text>
+          <View className="gap-1">
+            {WAQT_ORDER.map((waqt) => {
+              const isWaqtOn = waqtPrefs[waqt] ?? true;
+              return (
+                <View
+                  key={waqt}
+                  className="flex-row justify-between items-center py-2.5 border-b border-surface-variant/40 last:border-b-0"
+                >
+                  <View className="flex-row items-center gap-3">
+                    <View className="w-8 h-8 rounded-full bg-surface-container items-center justify-center">
+                      <Icon
+                        name={WAQT_ICON[waqt]}
+                        size={16}
+                        color={isWaqtOn && enabled ? Colors.primary : Colors.onSurfaceVariant}
+                      />
+                    </View>
+                    <Text
+                      className={`text-[14px] ${
+                        isWaqtOn && enabled ? 'font-semibold text-on-surface' : 'text-on-surface-variant'
+                      }`}
+                    >
+                      {t(waqtDisplayKey(waqt, false))}
+                    </Text>
+                  </View>
+                  <Switch
+                    value={isWaqtOn}
+                    disabled={!enabled}
+                    onValueChange={(val) => toggleWaqt(waqt, val)}
+                    trackColor={{ false: Colors.outlineVariant, true: Colors.primary }}
+                    thumbColor="#ffffff"
+                  />
+                </View>
+              );
+            })}
           </View>
         </View>
 

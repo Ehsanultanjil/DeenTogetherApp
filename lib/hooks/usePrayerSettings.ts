@@ -1,10 +1,13 @@
 import { useQuery, useQueryClient, useMutation } from '@tanstack/react-query';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../supabase';
 import { useAuthStore } from '../../store/useAuthStore';
 import { runOrQueue } from '../sync/runOrQueue';
 import { DEFAULT_SAFETY_MARGIN_MINUTES, type CalcMethodKey, type MadhabKey, type SafetyMarginMinutes } from '../prayerTimes';
 
 export type PrayerSettings = { calcMethod: CalcMethodKey; madhab: MadhabKey; safetyMarginMinutes: SafetyMarginMinutes };
+
+const GUEST_SETTINGS_KEY = 'deentogether.guestPrayerSettings';
 
 const DEFAULT_SETTINGS: PrayerSettings = {
   calcMethod: 'Karachi',
@@ -22,15 +25,25 @@ export async function applyPrayerSettingsUpdate(payload: { userId: string; patch
 export function usePrayerSettings() {
   const userId = useAuthStore((s) => s.session?.user.id);
   const queryClient = useQueryClient();
+  const queryKey = ['prayerSettings', userId ?? 'guest'];
 
   const query = useQuery({
-    queryKey: ['prayerSettings', userId],
-    enabled: !!userId,
+    queryKey,
     queryFn: async (): Promise<PrayerSettings> => {
+      if (!userId) {
+        try {
+          const raw = await AsyncStorage.getItem(GUEST_SETTINGS_KEY);
+          if (raw) return { ...DEFAULT_SETTINGS, ...JSON.parse(raw) };
+        } catch {
+          // Ignore parse errors
+        }
+        return DEFAULT_SETTINGS;
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('calc_method, madhab, safety_margin_minutes')
-        .eq('id', userId!)
+        .eq('id', userId)
         .maybeSingle();
       if (error) throw error;
       return {
@@ -41,11 +54,14 @@ export function usePrayerSettings() {
     },
   });
 
-  const queryKey = ['prayerSettings', userId];
-
   const mutation = useMutation({
     mutationFn: async (next: Partial<PrayerSettings>) => {
-      if (!userId) return;
+      if (!userId) {
+        const current = query.data ?? DEFAULT_SETTINGS;
+        const updated = { ...current, ...next };
+        await AsyncStorage.setItem(GUEST_SETTINGS_KEY, JSON.stringify(updated));
+        return;
+      }
       const patch = {
         ...(next.calcMethod ? { calc_method: next.calcMethod } : {}),
         ...(next.madhab ? { madhab: next.madhab } : {}),

@@ -5,13 +5,22 @@ import { supabase } from '../supabase';
 // webClientId is the Google Cloud "Web application" OAuth client (used as
 // the ID token audience); it must match the client ID configured on the
 // Google provider in the Supabase dashboard.
-GoogleSignin.configure({
-  webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
-  offlineAccess: false,
-});
+try {
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    offlineAccess: false,
+  });
+} catch {
+  // Graceful fallback for environments without Play Services or Expo Go
+}
 
 export async function signInWithGoogle() {
-  await GoogleSignin.hasPlayServices();
+  try {
+    await GoogleSignin.hasPlayServices();
+  } catch {
+    throw new Error('Google Sign-In requires Play Services (available in the standalone APK build). For testing in Expo Go, please use email sign-in.');
+  }
+
   const response = await GoogleSignin.signIn();
   if (response.type !== 'success') {
     throw new Error('CANCELLED');

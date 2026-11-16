@@ -33,16 +33,24 @@ export default function TabsLayout() {
     if (session) requestPrayerNotificationPermission().catch(() => {});
   }, [session]);
 
-  if (!session) {
-    return null;
-  }
-
   return (
     <Tabs screenOptions={{ headerShown: false }} tabBar={(props) => <AnimatedTabBar {...props} />}>
       <Tabs.Screen name="index" options={{ title: t('tabHome') }} />
-      <Tabs.Screen name="calendar" options={{ title: t('tabCalendar') }} />
+      <Tabs.Screen
+        name="calendar"
+        options={{
+          title: t('tabCalendar'),
+          href: session ? '/(tabs)/calendar' : null,
+        }}
+      />
       <Tabs.Screen name="dua" options={{ title: t('tabDua') }} />
-      <Tabs.Screen name="family" options={{ title: t('tabFamily') }} />
+      <Tabs.Screen
+        name="family"
+        options={{
+          title: t('tabFamily'),
+          href: session ? '/(tabs)/family' : null,
+        }}
+      />
       <Tabs.Screen name="profile" options={{ title: t('tabProfile') }} />
     </Tabs>
   );

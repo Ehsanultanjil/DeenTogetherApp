@@ -67,34 +67,18 @@ onlineManager.setEventListener((setOnline) => {
   });
 });
 
-// Single source of truth for auth-based routing. Having every layout
-// ((tabs), onboarding, and the login screen at "/") each decide
-// independently whether to redirect based on session was fragile — if any
-// two of them ever briefly disagreed during a fast transition (e.g. right
-// after sign-out), they could ping-pong forever (reproduced: white/gray
-// screen that never settled on logout). Centralizing it here, keyed off
-// the current route segments, is the pattern expo-router's own docs use
-// for exactly this reason.
+// Single source of truth for auth-based routing.
+// In Guest-First mode, unauthenticated users can access the full app UI ((tabs),
+// dua, calendar, today, etc.) without being forced to log in.
+// Authenticated users who haven't completed onboarding are routed to /onboarding/language.
 function RootNavigation({ onReady }: { onReady: () => void }) {
   const router = useRouter();
-  // useSegments() returns a new array every render even when its contents
-  // are unchanged — depending on it directly in the effect below re-fires
-  // router.replace() on unrelated re-renders, each call interrupting the
-  // last one's in-flight transition (reproduced: navigation left stuck
-  // mid-transition, tab bar unresponsive). Depend on the one primitive
-  // value that actually matters instead.
   const group = useSegments()[0] as string | undefined;
   const session = useAuthStore((s) => s.session);
   const { data: onboardingCompleted, isLoading: onboardingLoading } = useOnboardingStatus();
   const reportedReady = useRef(false);
 
   useEffect(() => {
-    // Every cold start mounts the Stack at "/" (index.tsx) first, no matter
-    // the session — the redirect below only fires a beat later, once this
-    // effect runs. That gap used to be visible as a flash of the login
-    // screen before landing on the dashboard. RootLayout keeps the native
-    // splash up until `onReady` fires, so nothing renders on screen until
-    // we're already settled on the correct group.
     const reportReadyOnce = () => {
       if (!reportedReady.current) {
         reportedReady.current = true;
@@ -104,67 +88,36 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
 
     const inOnboarding = group === 'onboarding';
 
-    if (!session) {
-      // Logged out from any authenticated screen: redirect back to login.
-      // Deliberately not scoped to just inTabs/inOnboarding — plenty of
-      // authenticated screens (profile/settings, profile/namaj, family/*,
-      // today, month-stats, ...) are top-level routes outside both groups,
-      // and account deletion's confirm flow lives on one of them
-      // (profile/settings); scoping this to only (tabs)/onboarding left
-      // session-drop from any of those routes with no redirect at all —
-      // the user stayed stuck on the same (now-broken) screen after
-      // deleting their account. This MUST run here at the root, not from
-      // inside (tabs)/_layout: both app/index.tsx and app/(tabs)/index.tsx
-      // resolve to the URL "/" (route groups are invisible in the path), so
-      // a <Redirect href="/"> rendered *inside* the tabs group resolves to
-      // the nearest match — (tabs)/index (Home) — never leaves the group,
-      // and re-fires forever (reproduced: 3000+ navigations, a hard
-      // redirect loop). Fired from the root navigator, "/" resolves to
-      // app/index.tsx (login) as intended. The layout guards stay passive
-      // (render null) so they don't compete.
-      if (group !== undefined) {
-        router.replace('/');
+    // Signed in: ensure profile onboarding is completed
+    if (session) {
+      if (onboardingLoading) return;
+
+      if (onboardingCompleted === false) {
+        if (!inOnboarding) {
+          router.replace('/onboarding/language');
+          return;
+        }
+        reportReadyOnce();
         return;
       }
-      reportReadyOnce();
-      return;
     }
 
-    if (onboardingLoading) return;
-
-    if (onboardingCompleted === false) {
-      if (!inOnboarding) {
-        router.replace('/onboarding/language');
-        return;
-      }
-      reportReadyOnce();
-      return;
-    }
-
-    // Signed in and onboarded — the login screen ("/", no group) is only
-    // useful while logged out.
-    if (group === undefined) {
+    // Guest: onboarding is only for accounts; redirect to tabs if in onboarding
+    if (!session && inOnboarding) {
       router.replace('/(tabs)');
       return;
     }
+
     reportReadyOnce();
   }, [session, onboardingCompleted, onboardingLoading, group, router, onReady]);
 
-  // app/index.tsx (login) and app/(tabs)/index.tsx (Home) BOTH resolve to
-  // the URL "/" because route groups are invisible in the path. That made
-  // "/" ambiguous: a logout redirect to "/" resolved to the Home tab
-  // instead of login (blank screen / redirect loop). Gating the two on
-  // session so only ONE exists at a time removes the ambiguity at its
-  // source — "/" is login when logged out, Home when logged in. All other
-  // routes are still auto-registered from the filesystem.
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      <Stack.Protected guard={!session}>
-        <Stack.Screen name="index" />
-      </Stack.Protected>
-      <Stack.Protected guard={!!session}>
-        <Stack.Screen name="(tabs)" />
-      </Stack.Protected>
+      <Stack.Screen name="index" />
+      <Stack.Screen name="(tabs)" />
+      <Stack.Screen name="login" options={{ presentation: 'modal' }} />
+      <Stack.Screen name="qibla" options={{ presentation: 'card' }} />
+      <Stack.Screen name="tasbih" options={{ presentation: 'card' }} />
     </Stack>
   );
 }
@@ -185,6 +138,7 @@ export default function RootLayout() {
   });
 
   const initialized = useAuthStore((s) => s.initialized);
+  const authHydrated = useAuthStore((s) => s.hydrated);
   const setSession = useAuthStore((s) => s.setSession);
   const setInitialized = useAuthStore((s) => s.setInitialized);
   const localeHydrated = useLocaleStore((s) => s.hydrated);
@@ -212,30 +166,44 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    // getSession() reads from AsyncStorage — if that ever hangs (e.g. a
-    // lock conflict with the background notification task also touching
-    // it) or rejects, `initialized` must still become true, or the whole
-    // app is stuck on the blank gate below forever (reproduced: a
-    // permanently stuck black screen surviving even a device reboot).
-    const timeout = new Promise<{ data: { session: null } }>((resolve) =>
-      setTimeout(() => resolve({ data: { session: null } }), 5000),
-    );
-    Promise.race([supabase.auth.getSession(), timeout])
-      .catch(() => ({ data: { session: null } }))
-      .then(({ data }) => {
-        setSession(data.session);
+    // Hydrate cached session first so offline restarts retain the user's
+    // identity and logs without getting forced into logged-out state.
+    useAuthStore.getState().hydrate().then(async () => {
+      const timeout = new Promise<{ data: { session: null } }>((resolve) =>
+        setTimeout(() => resolve({ data: { session: null } }), 4000),
+      );
+      try {
+        const { data } = await Promise.race([supabase.auth.getSession(), timeout]);
+        if (data?.session) {
+          await setSession(data.session);
+        } else {
+          // If Supabase returns no session, verify network connectivity before clearing.
+          // Offline network errors during token refresh must not clear the cached session.
+          const net = await NetInfo.fetch();
+          const isOnline = !!net.isConnected && net.isInternetReachable !== false;
+          if (isOnline) {
+            await setSession(null);
+          }
+        }
+      } catch {
+        const net = await NetInfo.fetch();
+        const isOnline = !!net.isConnected && net.isInternetReachable !== false;
+        if (isOnline) {
+          await setSession(null);
+        }
+      } finally {
         setInitialized(true);
-      });
-    const { data: subscription } = supabase.auth.onAuthStateChange((event, session) => {
-      setSession(session);
-      // A second account signing in on the same device must not inherit the
-      // previous user's cached location, queued offline writes (which would
-      // just fail RLS's auth.uid() check under the new session), or cached
-      // prayer/family query data.
+      }
+    });
+
+    const { data: subscription } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'SIGNED_OUT') {
+        await setSession(null);
         queryClient.clear();
         useLocationStore.getState().reset();
         useSyncQueueStore.getState().reset();
+      } else if (session) {
+        await setSession(session);
       }
     });
     return () => subscription.subscription.unsubscribe();
@@ -256,6 +224,7 @@ export default function RootLayout() {
 
   const readyToMount =
     (fontsLoaded || fontError) &&
+    authHydrated &&
     initialized &&
     localeHydrated &&
     themeHydrated &&

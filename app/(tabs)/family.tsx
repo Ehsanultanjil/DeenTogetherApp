@@ -133,6 +133,66 @@ export default function FamilyScreen() {
     await Share.share({ message: t('shareInviteMessage', { code: current.inviteCode }) });
   };
 
+  if (!session) {
+    return (
+      <View className="flex-1 bg-surface">
+        <TopAppBar title={t('tabFamily')} />
+        <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingTop: 24, paddingBottom: tabBarHeight + 24 }}>
+          <View className="bg-surface-container-lowest shadow-sm border border-surface-container-high rounded-3xl p-6 items-center">
+            <View className="w-16 h-16 rounded-full bg-primary/10 items-center justify-center mb-4">
+              <Icon name="groups" filled color={Colors.primary} size={36} />
+            </View>
+            <Text className="text-[22px] font-bold text-on-surface text-center mb-2">
+              {t('familyGuestTitle')}
+            </Text>
+            <Text className="text-[14px] text-on-surface-variant text-center mb-6 leading-relaxed">
+              {t('familyGuestSubtitle')}
+            </Text>
+
+            <View className="w-full gap-3 mb-6">
+              <View className="flex-row items-start gap-3 bg-surface p-3.5 rounded-2xl border border-surface-container-low">
+                <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mt-0.5">
+                  <Icon name="check_circle" size={18} color={Colors.primary} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[14px] font-bold text-on-surface">{t('familyFeature1Title')}</Text>
+                  <Text className="text-[12px] text-on-surface-variant mt-0.5">{t('familyFeature1Desc')}</Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-start gap-3 bg-surface p-3.5 rounded-2xl border border-surface-container-low">
+                <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mt-0.5">
+                  <Icon name="notifications" size={18} color={Colors.primary} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[14px] font-bold text-on-surface">{t('familyFeature2Title')}</Text>
+                  <Text className="text-[12px] text-on-surface-variant mt-0.5">{t('familyFeature2Desc')}</Text>
+                </View>
+              </View>
+
+              <View className="flex-row items-start gap-3 bg-surface p-3.5 rounded-2xl border border-surface-container-low">
+                <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center mt-0.5">
+                  <Icon name="lock" size={18} color={Colors.primary} />
+                </View>
+                <View className="flex-1">
+                  <Text className="text-[14px] font-bold text-on-surface">{t('familyFeature3Title')}</Text>
+                  <Text className="text-[12px] text-on-surface-variant mt-0.5">{t('familyFeature3Desc')}</Text>
+                </View>
+              </View>
+            </View>
+
+            <Pressable
+              onPress={() => router.push('/login')}
+              className="w-full h-14 bg-primary rounded-full items-center justify-center active:opacity-90 shadow-sm"
+            >
+              <Text className="text-on-primary font-bold text-[16px]">{t('signInButton')}</Text>
+            </Pressable>
+          </View>
+        </ScrollView>
+      </View>
+    );
+  }
+
   if (membershipsLoading || currentLoading) {
     return (
       <View className="flex-1 bg-surface items-center justify-center">

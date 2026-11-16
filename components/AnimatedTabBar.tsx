@@ -6,6 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { Text } from './Text';
 import { DarkColors } from '../constants/theme';
+import { useAuthStore } from '../store/useAuthStore';
 import type { MaterialSymbolName } from '../constants/materialSymbols';
 
 const TAB_ICON: Record<string, MaterialSymbolName> = {
@@ -28,17 +29,36 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
   const pillX = useSharedValue(0);
   const pillWidth = useSharedValue(0);
 
+  const session = useAuthStore((s) => s.session);
+
+  // When logged out, strictly display only Home, Dua, and Profile tabs.
+  // When logged in, display all 5 tabs.
+  const visibleRoutes = state.routes.filter((route) => {
+    if (!session) {
+      return route.name === 'index' || route.name === 'dua' || route.name === 'profile';
+    }
+    return true;
+  });
+
+  const activeVisibleIndex = visibleRoutes.findIndex((r) => r.key === state.routes[state.index]?.key);
+
   useEffect(() => {
-    const active = layouts[state.index];
+    setLayouts([]);
+  }, [visibleRoutes.length]);
+
+  useEffect(() => {
+    if (activeVisibleIndex < 0) return;
+    const active = layouts[activeVisibleIndex];
     if (!active) return;
     pillX.value = withTiming(active.x, { duration: 220 });
     pillWidth.value = withTiming(active.width, { duration: 220 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.index, layouts]);
+  }, [activeVisibleIndex, layouts]);
 
   const pillStyle = useAnimatedStyle(() => ({
     transform: [{ translateX: pillX.value }],
     width: pillWidth.value,
+    opacity: activeVisibleIndex >= 0 ? 1 : 0,
   }));
 
   const onTabLayout = (index: number) => (e: LayoutChangeEvent) => {
@@ -48,7 +68,7 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
       next[index] = { x, width };
       return next;
     });
-    if (index === state.index && pillWidth.value === 0) {
+    if (index === activeVisibleIndex && pillWidth.value === 0) {
       pillX.value = x;
       pillWidth.value = width;
     }
@@ -84,8 +104,8 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
           pillStyle,
         ]}
       />
-      {state.routes.map((route, index) => {
-        const focused = state.index === index;
+      {visibleRoutes.map((route, index) => {
+        const focused = state.routes[state.index]?.key === route.key;
         const { options } = descriptors[route.key];
         const label = typeof options.title === 'string' ? options.title : route.name;
         const tintColor = focused ? DarkColors.onPrimaryContainer : DarkColors.onSurfaceVariant;
