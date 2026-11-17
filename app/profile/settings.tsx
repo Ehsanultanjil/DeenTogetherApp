@@ -21,10 +21,14 @@ export default function SettingsScreen() {
 
   return (
     <View className="flex-1 bg-surface">
-      <TopAppBar title={t('sectionSettings')} />
+      <TopAppBar
+        title={t('sectionSettings')}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/(tabs)/profile'))}
+      />
       <View className="px-gutter pt-4 gap-2">
         <SettingsRow label={t('notificationSettings')} onPress={() => setNotificationModalOpen(true)} />
         <SettingsRow label={t('privacyPolicy')} onPress={() => router.push('/profile/privacy')} />
+        <SettingsRow label={t('aboutApp')} onPress={() => router.push('/profile/about')} />
         {session ? (
           <>
             <SettingsRow

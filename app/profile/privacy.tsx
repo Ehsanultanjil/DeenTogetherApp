@@ -1,4 +1,5 @@
 import { ScrollView, View } from 'react-native';
+import { useRouter } from 'expo-router';
 import { Text } from '../../components/Text';
 import { TopAppBar } from '../../components/TopAppBar';
 import { useT } from '../../lib/hooks/useT';
@@ -19,11 +20,15 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export default function PrivacyPolicyScreen() {
+  const router = useRouter();
   const { t } = useT();
 
   return (
     <View className="flex-1 bg-surface">
-      <TopAppBar title={t('privacyPolicy')} />
+      <TopAppBar
+        title={t('privacyPolicy')}
+        onBack={() => (router.canGoBack() ? router.back() : router.replace('/profile/settings'))}
+      />
       <ScrollView className="flex-1 px-gutter" contentContainerStyle={{ paddingTop: 16, paddingBottom: 32 }}>
         <Text className="text-[11px] text-on-surface-variant mb-6">Last updated: {LAST_UPDATED}</Text>
 
@@ -32,6 +37,15 @@ export default function PrivacyPolicyScreen() {
             DeenTogether ("the app") helps you track your daily prayers and Quran reading, and see that same
             status for the family members you choose to connect with. This policy explains what information the
             app collects, why, and how it's shared.
+          </Text>
+        </Section>
+
+        <Section title="About DeenTogether">
+          <Text className="text-[13px] text-on-surface-variant leading-5">
+            DeenTogether is a dedicated, distraction-free Islamic companion designed to assist Muslims in
+            maintaining their daily prayers (Salah), tracking Quran recitation, sharing encouragement with family
+            members, locating the Qibla, and performing daily Dhikr. The app is completely ad-free, respectful,
+            and built with a strict privacy-first philosophy.
           </Text>
         </Section>
 
