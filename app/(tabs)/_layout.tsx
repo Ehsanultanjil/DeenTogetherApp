@@ -43,7 +43,7 @@ export default function TabsLayout() {
           href: session ? '/(tabs)/calendar' : null,
         }}
       />
-      <Tabs.Screen name="dua" options={{ title: t('tabDua') }} />
+      <Tabs.Screen name="quran" options={{ title: t('tabQuran') }} />
       <Tabs.Screen
         name="family"
         options={{

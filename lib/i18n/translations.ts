@@ -27,7 +27,8 @@ const en = {
   // Tabs
   tabHome: 'Home',
   tabCalendar: 'Calendar',
-  tabDua: 'Dua',
+  tabQuran: 'Quran',
+  tabDua: 'Quran',
   tabFamily: 'Family',
   tabProfile: 'Profile',
 
@@ -382,7 +383,8 @@ const bn: typeof en = {
 
   tabHome: 'হোম',
   tabCalendar: 'ক্যালেন্ডার',
-  tabDua: 'দোয়া',
+  tabQuran: 'কুরআন',
+  tabDua: 'কুরআন',
   tabFamily: 'পরিবার',
   tabProfile: 'প্রোফাইল',
 

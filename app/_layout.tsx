@@ -118,6 +118,7 @@ function RootNavigation({ onReady }: { onReady: () => void }) {
       <Stack.Screen name="login" options={{ presentation: 'modal' }} />
       <Stack.Screen name="qibla" options={{ presentation: 'card' }} />
       <Stack.Screen name="tasbih" options={{ presentation: 'card' }} />
+      <Stack.Screen name="quran/[id]" options={{ presentation: 'card' }} />
     </Stack>
   );
 }
