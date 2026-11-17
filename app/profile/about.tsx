@@ -151,15 +151,38 @@ export default function AboutScreen() {
           </Pressable>
         </View>
 
-        {/* Developer & Dedication Card */}
+        {/* Leadership & Credits Card */}
         <View className="p-4 bg-surface-container-lowest rounded-2xl border border-surface-variant mb-4 shadow-sm">
-          <View className="flex-row items-center gap-2.5 mb-2">
+          <View className="flex-row items-center gap-2.5 mb-3">
             <View className="w-8 h-8 rounded-full bg-primary/10 items-center justify-center">
               <Icon name="volunteer_activism" size={18} color={Colors.primary} />
             </View>
             <Text className="text-[15px] font-bold text-on-surface">{t('aboutDeveloperTitle')}</Text>
           </View>
-          <Text className="text-[13px] text-on-surface-variant leading-5">
+
+          <View className="gap-2.5">
+            <View className="flex-row items-start justify-between py-1.5 border-b border-surface-variant/40">
+              <Text className="text-[13px] text-on-surface-variant font-medium">{t('publishedByLabel')}</Text>
+              <Text className="text-[13px] font-bold text-on-surface text-right flex-1 ml-3">{t('publisherName')}</Text>
+            </View>
+
+            <View className="flex-row items-start justify-between py-1.5 border-b border-surface-variant/40">
+              <Text className="text-[13px] text-on-surface-variant font-medium">{t('createdByLabel')}</Text>
+              <Text className="text-[13px] font-bold text-on-surface text-right flex-1 ml-3">{t('creatorName')}</Text>
+            </View>
+
+            <View className="flex-row items-start justify-between py-1.5 border-b border-surface-variant/40">
+              <Text className="text-[13px] text-on-surface-variant font-medium">{t('productFounderLabel')}</Text>
+              <Text className="text-[13px] font-bold text-on-surface text-right flex-1 ml-3">{t('creatorName')}</Text>
+            </View>
+
+            <View className="flex-row items-start justify-between py-1.5">
+              <Text className="text-[13px] text-on-surface-variant font-medium">{t('leadDeveloperLabel')}</Text>
+              <Text className="text-[13px] font-bold text-on-surface text-right flex-1 ml-3">{t('creatorName')}</Text>
+            </View>
+          </View>
+
+          <Text className="text-[12px] text-on-surface-variant mt-3 pt-2.5 border-t border-surface-variant/40 leading-4">
             {t('aboutDeveloperDesc')}
           </Text>
         </View>
@@ -209,3 +232,4 @@ export default function AboutScreen() {
     </View>
   );
 }
+

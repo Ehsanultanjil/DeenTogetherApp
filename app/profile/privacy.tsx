@@ -44,8 +44,9 @@ export default function PrivacyPolicyScreen() {
           <Text className="text-[13px] text-on-surface-variant leading-5">
             DeenTogether is a dedicated, distraction-free Islamic companion designed to assist Muslims in
             maintaining their daily prayers (Salah), tracking Quran recitation, sharing encouragement with family
-            members, locating the Qibla, and performing daily Dhikr. The app is completely ad-free, respectful,
-            and built with a strict privacy-first philosophy.
+            members, locating the Qibla, and performing daily Dhikr. The app is published by WeTrainEducation and Tech OPC,
+            founded and developed by Ehsanul Karim Tanjil. The app is completely ad-free, respectful, and built with a
+            strict privacy-first philosophy.
           </Text>
         </Section>
 
@@ -136,9 +137,18 @@ export default function PrivacyPolicyScreen() {
           </Text>
         </Section>
 
-        <Section title="Contact">
+        <Section title="Contact & Publisher">
           <Text className="text-[13px] text-on-surface-variant leading-5">
-            Questions about this policy or your data: DeenTogether.app@gmail.com
+            <Text className="font-bold text-on-surface">Published by: </Text>
+            WeTrainEducation and Tech OPC
+          </Text>
+          <Text className="text-[13px] text-on-surface-variant leading-5">
+            <Text className="font-bold text-on-surface">Founder & Lead Developer: </Text>
+            Ehsanul Karim Tanjil
+          </Text>
+          <Text className="text-[13px] text-on-surface-variant leading-5">
+            <Text className="font-bold text-on-surface">Questions about this policy or your data: </Text>
+            DeenTogether.app@gmail.com
           </Text>
         </Section>
       </ScrollView>
