@@ -13,7 +13,6 @@ const TAB_ICON: Record<string, MaterialSymbolName> = {
   index: 'home',
   calendar: 'event_note',
   quran: 'menu_book',
-  dua: 'menu_book',
   family: 'groups',
   profile: 'person',
 };
@@ -36,7 +35,7 @@ export function AnimatedTabBar({ state, descriptors, navigation }: BottomTabBarP
   // When logged in, display all 5 tabs.
   const visibleRoutes = state.routes.filter((route) => {
     if (!session) {
-      return route.name === 'index' || route.name === 'quran' || route.name === 'dua' || route.name === 'profile';
+      return route.name === 'index' || route.name === 'quran' || route.name === 'profile';
     }
     return true;
   });

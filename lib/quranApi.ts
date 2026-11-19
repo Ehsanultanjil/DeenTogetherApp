@@ -242,3 +242,4 @@ export async function setLastReadPosition(pos: Omit<LastReadPosition, 'updated_a
     // ignore
   }
 }
+

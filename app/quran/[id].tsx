@@ -191,18 +191,55 @@ export default function SurahDetailScreen() {
 
     return (
       <View
-        className="p-4 bg-surface-container-lowest rounded-2xl border border-surface-variant mb-3.5 shadow-sm"
+        className="bg-surface-container-lowest rounded-2xl border border-surface-variant shadow-sm"
+        style={{
+          padding: 16,
+          marginBottom: 16,
+        }}
       >
-        {/* Word-by-Word Arabic Flow Container */}
+        {/* Word-by-Word Arabic Flow Container (Strict Horizontal RTL Row Wrap) */}
         <View
-          className="flex-row-reverse flex-wrap items-start justify-start gap-x-3.5 gap-y-3 mb-4"
+          style={{
+            flexDirection: 'row-reverse',
+            flexWrap: 'wrap',
+            alignItems: 'flex-start',
+            justifyContent: 'flex-start',
+            rowGap: 14,
+            columnGap: 12,
+            marginBottom: 16,
+            width: '100%',
+          }}
         >
           {verse.words.map((w, idx) => {
             if (w.char_type === 'end') {
               return (
-                <View key={w.id || idx} className="items-center justify-center self-center px-1">
-                  <View className="w-8 h-8 rounded-full border-2 border-primary/40 items-center justify-center bg-primary/5">
-                    <Text className="text-[11px] font-bold text-primary">
+                <View
+                  key={w.id || idx}
+                  style={{
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    alignSelf: 'center',
+                    paddingHorizontal: 4,
+                  }}
+                >
+                  <View
+                    style={{
+                      width: 32,
+                      height: 32,
+                      minWidth: 32,
+                      maxWidth: 32,
+                      minHeight: 32,
+                      maxHeight: 32,
+                      borderRadius: 16,
+                      borderWidth: 1.5,
+                      borderColor: Colors.primary,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                      backgroundColor: Colors.primary + '18',
+                    }}
+                  >
+                    <Text style={{ fontSize: 11, fontWeight: 'bold', color: Colors.primary }}>
                       {n(verse.verse_number)}
                     </Text>
                   </View>
@@ -211,18 +248,39 @@ export default function SurahDetailScreen() {
             }
 
             return (
-              <View key={w.id || idx} className="items-center min-w-[32px] px-1 py-0.5">
+              <View
+                key={w.id || idx}
+                style={{
+                  alignItems: 'center',
+                  paddingHorizontal: 4,
+                  paddingVertical: 2,
+                }}
+              >
                 {/* Arabic Word */}
                 <Text
-                  className="text-on-surface font-bold text-center leading-relaxed"
-                  style={{ fontSize: arabicFontSize, writingDirection: 'rtl' }}
+                  style={{
+                    fontSize: arabicFontSize,
+                    color: Colors.onSurface,
+                    fontWeight: 'bold',
+                    textAlign: 'center',
+                    writingDirection: 'rtl',
+                    lineHeight: arabicFontSize * 1.5,
+                  }}
                 >
                   {w.text}
                 </Text>
 
                 {/* Word-by-Word Bangla Translation */}
                 {showWbw && w.translation ? (
-                  <Text className="text-[11px] text-on-surface-variant text-center mt-1 leading-tight">
+                  <Text
+                    style={{
+                      fontSize: 11.5,
+                      color: Colors.onSurfaceVariant,
+                      textAlign: 'center',
+                      marginTop: 3,
+                      lineHeight: 16,
+                    }}
+                  >
                     {w.translation}
                   </Text>
                 ) : null}
@@ -247,15 +305,6 @@ export default function SurahDetailScreen() {
 
           {/* Action Buttons */}
           <View className="flex-row items-center gap-2">
-            {/* Audio Recitation button */}
-            <Pressable
-              onPress={() => showToast('শীঘ্রই অডিও তেলাওয়াত প্লে হবে')}
-              className="w-8 h-8 rounded-full bg-surface-container-high items-center justify-center active:opacity-60"
-              hitSlop={8}
-            >
-              <Icon name="play_arrow" size={18} color={Colors.onSurfaceVariant} />
-            </Pressable>
-
             {/* Copy button */}
             <Pressable
               onPress={() => handleCopyAyah(verse)}
@@ -532,3 +581,4 @@ export default function SurahDetailScreen() {
     </View>
   );
 }
+

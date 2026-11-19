@@ -10,28 +10,77 @@ type Props = {
   onBack?: () => void;
 };
 
-// Centered title, optional back button when onBack is passed.
+// Rock-solid flex-row header: Left back button, Center title, Right spacer.
+// Immune to NativeWind absolute positioning bugs or text overlap.
 export function TopAppBar({ title, dateText, onBack }: Props) {
   const insets = useSafeAreaInsets();
   const Colors = useColors();
 
   return (
     <View
-      className="w-full items-center justify-center px-gutter bg-surface relative"
-      style={{ paddingTop: insets.top, height: 64 + insets.top }}
+      style={{
+        width: '100%',
+        backgroundColor: Colors.surface,
+        paddingTop: insets.top,
+        borderBottomWidth: 1,
+        borderBottomColor: Colors.surfaceVariant + '35',
+      }}
     >
-      {onBack ? (
-        <Pressable
-          onPress={onBack}
-          hitSlop={12}
-          className="absolute left-4 w-10 h-10 rounded-full items-center justify-center active:opacity-60"
-          style={{ top: insets.top + (64 - 40) / 2 }}
-        >
-          <Icon name="arrow_back" size={22} color={Colors.onSurface} />
-        </Pressable>
-      ) : null}
-      <Text className="text-[20px] font-bold text-primary leading-none">{title}</Text>
-      {dateText ? <Text className="text-[12px] text-on-surface-variant mt-0.5">{dateText}</Text> : null}
+      <View
+        style={{
+          height: 56,
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: 16,
+        }}
+      >
+        {/* Left: Back button or spacer */}
+        {onBack ? (
+          <Pressable
+            onPress={onBack}
+            hitSlop={12}
+            style={({ pressed }) => [
+              {
+                width: 40,
+                height: 40,
+                borderRadius: 20,
+                alignItems: 'center',
+                justifyContent: 'center',
+                backgroundColor: pressed ? Colors.surfaceContainerHigh : 'transparent',
+              },
+            ]}
+          >
+            <Icon name="arrow_back" size={24} color={Colors.onSurface} />
+          </Pressable>
+        ) : (
+          <View style={{ width: 40, height: 40 }} />
+        )}
+
+        {/* Center: Title & optional dateText */}
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 }}>
+          <Text
+            style={{
+              fontSize: 19,
+              fontWeight: 'bold',
+              color: Colors.primary,
+              textAlign: 'center',
+              lineHeight: 26,
+            }}
+            numberOfLines={1}
+          >
+            {title}
+          </Text>
+          {dateText ? (
+            <Text style={{ fontSize: 11, color: Colors.onSurfaceVariant, marginTop: 2 }}>
+              {dateText}
+            </Text>
+          ) : null}
+        </View>
+
+        {/* Right: Spacer to keep title centered */}
+        <View style={{ width: 40, height: 40 }} />
+      </View>
     </View>
   );
 }

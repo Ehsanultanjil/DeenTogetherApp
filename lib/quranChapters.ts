@@ -1,4 +1,4 @@
-﻿// Comprehensive list of all 114 Surahs of the Holy Quran with Arabic, English, and authentic Bengali metadata.
+// Comprehensive list of all 114 Surahs of the Holy Quran with Arabic, English, and authentic Bengali metadata.
 export type Surah = {
   id: number;
   name_simple: string;
@@ -10,8 +10,6 @@ export type Surah = {
 };
 
 export const SURAHS: Surah[] = [
-
-
     {
         "id":  1,
         "name_simple":  "Al-Fatihah",
